@@ -1,19 +1,23 @@
 """GitHub OAuth code-for-token relay.
 
-GitHub's token endpoint does not return CORS headers, so a PKCE flow run
-entirely in the browser still needs a server-side relay. This endpoint:
+The PWA does the PKCE half-flow (redirect + verifier) and posts the
+authorization code here. We:
 
-  - accepts {client_id, code, redirect_uri, code_verifier} from the PWA
-  - forwards them to https://github.com/login/oauth/access_token
-  - returns GitHub's JSON response verbatim to the PWA
+  - accept {client_id, code, redirect_uri, code_verifier} from the PWA
+  - inject GITHUB_CLIENT_SECRET server-side (GitHub OAuth Apps require
+    it; PKCE-without-secret is GitHub-Apps-only)
+  - forward to https://github.com/login/oauth/access_token
+  - return GitHub's JSON response verbatim to the PWA
 
-The backend never persists the token. It's a 60-line proxy and stays
-stateless. No auth on this endpoint — the PKCE verifier is what binds the
-exchange to a specific browser session.
+The token never persists server-side. The client_secret never leaves
+the backend. PKCE still protects against authorization-code interception
+because the verifier binds the exchange to the specific browser session.
 """
 import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
+from app.config import settings
 
 router = APIRouter(prefix="/auth/github", tags=["auth"])
 
@@ -30,12 +34,21 @@ class ExchangePayload(BaseModel):
 
 @router.post("/exchange")
 async def exchange(payload: ExchangePayload) -> dict:
+    if not settings.github_client_secret:
+        raise HTTPException(
+            status_code=500,
+            detail="GITHUB_CLIENT_SECRET is not configured on the server.",
+        )
+
+    data = payload.model_dump()
+    data["client_secret"] = settings.github_client_secret
+
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         try:
             r = await client.post(
                 GITHUB_TOKEN_URL,
                 headers={"Accept": "application/json"},
-                data=payload.model_dump(),
+                data=data,
             )
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=502, detail=f"GitHub unreachable: {exc}") from exc

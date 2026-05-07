@@ -16,6 +16,12 @@ class Settings(BaseSettings):
     gotenberg_user: str | None = None
     gotenberg_password: str | None = None
 
+    # GitHub OAuth — the *App* secret. Lives only here (Vercel env var), never
+    # in the PWA bundle. The PWA still runs PKCE for the front half of the
+    # flow; we add the secret server-side because GitHub OAuth Apps require
+    # it on /login/oauth/access_token (PKCE alone is GitHub-Apps-only).
+    github_client_secret: str | None = None
+
     # WMS upstream — defaults are best-known endpoints; override via env if they drift.
     # See memory/reference_italian_data_sources.md.
     wms_vincoli_url: str = "https://vincoliinrete.beniculturali.it/VincoliInRete/services/Wms"
