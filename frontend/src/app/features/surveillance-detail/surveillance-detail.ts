@@ -169,6 +169,7 @@ export class SurveillanceDetail {
       }
       const ref = this.ref();
       const photoBlobs = new Map<string, Blob>();
+      let mapImage: Blob | null = null;
       if (ref) {
         for (const p of s.photos) {
           if (!p.path) continue;
@@ -179,8 +180,17 @@ export class SurveillanceDetail {
             // skip — render will surface "[immagine non trasmessa]"
           }
         }
+        // Optional tavola d'insieme: included only if the user has exported one
+        // from the map page.
+        try {
+          mapImage = await this.gh.getBinaryFile(ref, 'exports/map.png', 'image/png');
+        } catch {
+          mapImage = null;
+        }
       }
-      const blob = kind === 'docx' ? await this.api.renderDocx(s, photoBlobs) : await this.api.renderPdf(s, photoBlobs);
+      const blob = kind === 'docx'
+        ? await this.api.renderDocx(s, photoBlobs, mapImage)
+        : await this.api.renderPdf(s, photoBlobs, mapImage);
       this.downloadBlob(blob, `sorveglianza-${s.id}.${kind}`);
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : String(err));

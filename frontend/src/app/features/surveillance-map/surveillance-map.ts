@@ -20,7 +20,7 @@ import maplibregl, {
 } from 'maplibre-gl';
 
 import { ApiService, WmsSource } from '../../core/api.service';
-import { RepoRef } from '../../core/github/client';
+import { GitHubClient, RepoRef } from '../../core/github/client';
 import { IndexRepoService } from '../../core/storage/index-repo';
 import { SurveillanceStore } from '../../core/storage/surveillance-store';
 import { Finding, Surveillance } from '../../core/types/surveillance';
@@ -93,6 +93,7 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
   private readonly index = inject(IndexRepoService);
   private readonly store = inject(SurveillanceStore);
   private readonly api = inject(ApiService);
+  private readonly gh = inject(GitHubClient);
 
   readonly mapContainer = viewChild.required<ElementRef<HTMLDivElement>>('mapContainer');
 
@@ -168,6 +169,9 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
       center,
       zoom: s.area ? 16 : 6,
       attributionControl: { compact: true },
+      // Required for canvas.toBlob / toDataURL to work — needed by the
+      // "Esporta mappa" feature that snapshots the rendered view as a PNG.
+      preserveDrawingBuffer: true,
     });
     this.map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left');
     this.map.addControl(
@@ -218,10 +222,11 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
       type: 'circle',
       source: 'findings',
       paint: {
-        'circle-radius': 6,
+        'circle-radius': 8,
         'circle-color': findingColor,
-        'circle-stroke-color': surfaceColor,
-        'circle-stroke-width': 2,
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': 2.5,
+        'circle-opacity': 0.95,
       },
     });
 
@@ -273,14 +278,23 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Read a CSS custom property from the document root. MapLibre paint
-   * properties want a literal colour string, so we resolve once at layer
-   * creation and don't try to make them reactive.
+   * Read a CSS custom property and resolve it to a concrete colour string
+   * (typically rgb()) that MapLibre's paint expressions accept on every
+   * version. Reading var() directly via getPropertyValue returns the
+   * specified value (e.g. "oklch(...)") which older MapLibre paint code
+   * paths do not parse, leaving layers invisible — applying the var to a
+   * real element forces the browser to compute it.
    */
   private cssVar(name: string, fallback: string): string {
-    if (typeof getComputedStyle === 'undefined') return fallback;
-    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    return v || fallback;
+    if (typeof document === 'undefined' || typeof getComputedStyle === 'undefined') return fallback;
+    const probe = document.createElement('span');
+    probe.style.position = 'absolute';
+    probe.style.visibility = 'hidden';
+    probe.style.color = `var(${name}, ${fallback})`;
+    document.body.appendChild(probe);
+    const resolved = getComputedStyle(probe).color;
+    probe.remove();
+    return resolved || fallback;
   }
 
   // ---- WMS layer toggle ------------------------------------------------
@@ -323,6 +337,39 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
     this.drawingPoints.set([]);
     this.mode.set('view');
     this.refreshDrawing();
+  }
+
+  // ---- exporting the map as an image ---------------------------------
+
+  readonly exporting = signal(false);
+  readonly exportedAt = signal<string | null>(null);
+
+  async exportMapImage(): Promise<void> {
+    const ref = this.ref();
+    if (!ref || !this.map || this.exporting()) return;
+    this.exporting.set(true);
+    this.error.set(null);
+    try {
+      // Trigger a render so the canvas reflects any pending state, then snapshot.
+      this.map.triggerRepaint();
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const canvas = this.map.getCanvas();
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((b) => resolve(b), 'image/png'),
+      );
+      if (!blob) throw new Error('Cattura fallita: il browser non ha restituito l’immagine.');
+      await this.gh.putBinaryFile(
+        ref,
+        'exports/map.png',
+        blob,
+        `archaeo-pro: aggiorna tavola d'insieme`,
+      );
+      this.exportedAt.set(new Date().toISOString());
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : String(err));
+    } finally {
+      this.exporting.set(false);
+    }
   }
 
   // ---- adding a finding -----------------------------------------------

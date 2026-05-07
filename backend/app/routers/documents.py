@@ -40,14 +40,25 @@ def _parse_payload(surveillance: str) -> SurveillancePayload:
         raise HTTPException(status_code=422, detail=f"Invalid surveillance payload: {exc}") from exc
 
 
+async def _read_map_image(map_image: UploadFile | None) -> bytes | None:
+    if map_image is None or not map_image.filename:
+        return None
+    raw = await map_image.read()
+    if len(raw) > MAX_PHOTO_BYTES:
+        raise HTTPException(status_code=413, detail="Map image too large")
+    return raw
+
+
 @router.post("/docx")
 async def render_docx_endpoint(
     surveillance: str = Form(...),
     photos: list[UploadFile] = File(default_factory=list),
+    map_image: UploadFile | None = File(default=None),
 ) -> FileResponse:
     payload = _parse_payload(surveillance)
     photo_bytes = await _collect_photos(photos)
-    path = render_docx(payload, photo_bytes)
+    map_bytes = await _read_map_image(map_image)
+    path = render_docx(payload, photo_bytes, map_bytes=map_bytes)
     return FileResponse(
         path,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -59,10 +70,12 @@ async def render_docx_endpoint(
 async def render_pdf_endpoint(
     surveillance: str = Form(...),
     photos: list[UploadFile] = File(default_factory=list),
+    map_image: UploadFile | None = File(default=None),
 ) -> FileResponse:
     payload = _parse_payload(surveillance)
     photo_bytes = await _collect_photos(photos)
-    docx_path = render_docx(payload, photo_bytes)
+    map_bytes = await _read_map_image(map_image)
+    docx_path = render_docx(payload, photo_bytes, map_bytes=map_bytes)
     try:
         pdf_path = await docx_to_pdf(docx_path)
     except PdfConversionError as exc:

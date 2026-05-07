@@ -57,28 +57,40 @@ export class ApiService {
   }
 
   /**
-   * POST a render-ready surveillance snapshot + photo blobs, get a DOCX back.
-   * The caller is responsible for fetching photo bytes from GitHub Releases
-   * before calling this endpoint.
+   * POST a render-ready surveillance snapshot + photo blobs (+ optional
+   * "tavola d'insieme" map snapshot), get a DOCX back. The caller is
+   * responsible for fetching photo bytes from GitHub before calling.
    */
-  async renderDocx(surveillance: Surveillance, photoBlobs: Map<string, Blob>): Promise<Blob> {
-    return this.renderDocument(surveillance, photoBlobs, 'docx');
+  async renderDocx(
+    surveillance: Surveillance,
+    photoBlobs: Map<string, Blob>,
+    mapImage?: Blob | null,
+  ): Promise<Blob> {
+    return this.renderDocument(surveillance, photoBlobs, 'docx', mapImage);
   }
 
-  async renderPdf(surveillance: Surveillance, photoBlobs: Map<string, Blob>): Promise<Blob> {
-    return this.renderDocument(surveillance, photoBlobs, 'pdf');
+  async renderPdf(
+    surveillance: Surveillance,
+    photoBlobs: Map<string, Blob>,
+    mapImage?: Blob | null,
+  ): Promise<Blob> {
+    return this.renderDocument(surveillance, photoBlobs, 'pdf', mapImage);
   }
 
   private async renderDocument(
     surveillance: Surveillance,
     photoBlobs: Map<string, Blob>,
     kind: 'docx' | 'pdf',
+    mapImage?: Blob | null,
   ): Promise<Blob> {
     const fd = new FormData();
     fd.append('surveillance', JSON.stringify(surveillance));
     for (const [id, blob] of photoBlobs) {
       // Filename equals the photo id by convention; the backend matches them.
       fd.append('photos', blob, id);
+    }
+    if (mapImage) {
+      fd.append('map_image', mapImage, 'map.png');
     }
     const res = await fetch(`/documents/${kind}`, { method: 'POST', body: fd });
     if (!res.ok) {

@@ -101,6 +101,26 @@
       </section>
 
       <section class="panel__block">
+        <h3 class="panel__heading">Tavola d’insieme</h3>
+        <button type="button" class="btn btn--ghost btn--block"
+                [disabled]="exporting() || mode() !== 'view'"
+                (click)="exportMapImage()">
+          @if (exporting()) { Cattura in corso… } @else { Esporta come immagine }
+        </button>
+        @if (exportedAt()) {
+          <p class="panel__note muted">
+            Salvata <span class="tabular">{{ exportedAt() | date:'HH:mm' }}</span>.
+            Verrà inclusa nel prossimo DOCX/PDF.
+          </p>
+        } @else {
+          <p class="panel__note muted">
+            La cattura include la base, gli strati WMS attivi e l’area sorvegliata.
+            Inquadra la mappa come la vuoi nella relazione, poi esporta.
+          </p>
+        }
+      </section>
+
+      <section class="panel__block">
         <h3 class="panel__heading">Evidenze</h3>
         <p class="panel__count">
           <span class="tabular">{{ surveillance()?.findings?.length || 0 }}</span>

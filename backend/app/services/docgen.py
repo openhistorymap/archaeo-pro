@@ -102,8 +102,14 @@ def _kv_table(doc, rows: list[tuple[str, str | None]]) -> None:
         c1.width = Cm(11.0)
 
 
-def render_docx(s: SurveillancePayload, photos: dict[str, bytes]) -> Path:
-    """Render a Sovrintendenza DOCX. `photos` is keyed by the photo id."""
+def render_docx(
+    s: SurveillancePayload,
+    photos: dict[str, bytes],
+    map_bytes: bytes | None = None,
+) -> Path:
+    """Render a Sovrintendenza DOCX. `photos` is keyed by the photo id;
+    `map_bytes`, when present, is rendered as the tavola d'insieme di
+    posizionamento topografico in section 2."""
     doc = Document()
 
     title = doc.add_heading("RELAZIONE DI SORVEGLIANZA ARCHEOLOGICA", level=0)
@@ -152,12 +158,26 @@ def render_docx(s: SurveillancePayload, photos: dict[str, bytes]) -> Path:
         f"{s.comune or '—'} (provincia di {s.provincia or '—'}), foglio catastale "
         f"{s.foglio_catastale or '—'}, particelle {s.particelle or '—'}.",
     )
-    _para(
-        doc,
-        "[Estratti cartografici: CTR, ortofoto da Geoportale Nazionale (PCN). "
-        "Inserire qui o in allegato.]",
-        italic=True,
-    )
+    if map_bytes:
+        _heading(doc, "2.1 Tavola d'insieme di posizionamento topografico", level=2)
+        try:
+            doc.add_picture(BytesIO(map_bytes), width=Cm(15))
+            cap = doc.add_paragraph(
+                f"Tavola d'insieme · {s.comune or '—'}{', ' + s.provincia if s.provincia else ''}",
+            )
+            cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            cap.runs[0].italic = True
+            cap.runs[0].font.size = Pt(10)
+        except Exception:
+            _para(doc, "[Tavola d'insieme non leggibile.]", italic=True)
+    else:
+        _para(
+            doc,
+            "[Tavola d'insieme: usare il pulsante 'Esporta come immagine' nella "
+            "pagina mappa per allegare automaticamente la cartografia di "
+            "posizionamento topografico.]",
+            italic=True,
+        )
 
     _heading(doc, "3. Inquadramento storico-archeologico")
     _para(
