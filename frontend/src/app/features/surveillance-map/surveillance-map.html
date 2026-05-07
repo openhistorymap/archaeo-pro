@@ -1,66 +1,108 @@
 <section class="map-page">
   <header class="map-bar">
-    <a [routerLink]="['/surveillances', surveillance()?.id]" class="map-bar__back">← Dettaglio</a>
-    <h1 class="map-bar__title">{{ surveillance()?.title || 'Mappa' }}</h1>
+    <a [routerLink]="['/surveillances', surveillance()?.id]" class="map-bar__back">
+      ← Scheda
+    </a>
+    <div class="map-bar__title-wrap">
+      <p class="map-bar__eyebrow">mappa di lavoro</p>
+      <h1 class="map-bar__title">{{ surveillance()?.title || '—' }}</h1>
+    </div>
     @if (mode() === 'draw-area') {
-      <span class="map-bar__hint">Tocca per aggiungere vertici · doppio-tocco per chiudere</span>
+      <p class="map-bar__hint">
+        <span class="map-bar__dot" aria-hidden="true"></span>
+        Tocca per i vertici · doppio-tocco per chiudere
+      </p>
     }
   </header>
 
   <div class="map" #mapContainer></div>
 
   @if (loading()) {
-    <div class="overlay overlay--center"><p>Caricamento…</p></div>
-  }
-
-  @if (error()) {
-    <div class="overlay overlay--bottom">
-      <p class="error">{{ error() }}</p>
+    <div class="map-overlay map-overlay--center">
+      <p class="map-overlay__msg">Apertura della mappa…</p>
     </div>
   }
 
-  <aside class="panel">
-    <section class="panel__block">
-      <h2>Strati WMS</h2>
-      @if (wmsSources().length === 0) {
-        <p class="muted">Nessuna fonte configurata.</p>
-      } @else {
-        <ul class="layers">
-          @for (s of wmsSources(); track s.id) {
-            <li>
-              <label>
-                <input type="checkbox" [checked]="isEnabled(s)" (change)="toggleSource(s)" />
-                <span>{{ s.label }}</span>
-              </label>
-            </li>
+  @if (error()) {
+    <div class="map-overlay map-overlay--bottom">
+      <p class="map-overlay__err">{{ error() }}</p>
+    </div>
+  }
+
+  <aside class="panel" [class.panel--collapsed]="panelCollapsed()">
+    <header class="panel__bar">
+      <h2 class="panel__bar-title">Strumenti</h2>
+      <button type="button" class="panel__toggle"
+              (click)="panelCollapsed.set(!panelCollapsed())"
+              [attr.aria-label]="panelCollapsed() ? 'Apri pannello strumenti' : 'Chiudi pannello strumenti'">
+        @if (panelCollapsed()) {
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <path d="M3 5l4 4 4-4"/>
+          </svg>
+        } @else {
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <path d="M3 9l4-4 4 4"/>
+          </svg>
+        }
+      </button>
+    </header>
+
+    <div class="panel__body">
+      <section class="panel__block">
+        <h3 class="panel__heading">Strati di sfondo</h3>
+        @if (wmsSources().length === 0) {
+          <p class="panel__empty muted">Nessuna fonte WMS configurata.</p>
+        } @else {
+          <ul class="layers">
+            @for (s of wmsSources(); track s.id) {
+              <li class="layer">
+                <label class="layer__label">
+                  <input type="checkbox" [checked]="isEnabled(s)" (change)="toggleSource(s)" />
+                  <span class="layer__name">{{ s.label }}</span>
+                </label>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+
+      <section class="panel__block">
+        <h3 class="panel__heading">Area sorvegliata</h3>
+        @if (mode() === 'view') {
+          <div class="panel__row">
+            <button type="button" class="btn btn--ghost btn--block" (click)="startDrawing()">
+              @if (surveillance()?.area) { Ridisegna area } @else { Disegna area }
+            </button>
+          </div>
+          @if (surveillance()?.area) {
+            <p class="panel__note muted">Area definita. Una nuova traccia la sostituisce.</p>
           }
-        </ul>
-      }
-    </section>
+        } @else {
+          <p class="panel__count">
+            <span class="tabular">{{ drawingPoints().length }}</span>
+            <span class="muted">{{ drawingPoints().length === 1 ? 'vertice' : 'vertici' }}</span>
+          </p>
+          <div class="panel__row">
+            <button type="button" class="btn btn--primary btn--block"
+                    [disabled]="!hasUnsavedDrawing() || busy()"
+                    (click)="finalizeDrawing()">
+              @if (busy()) { Salvataggio… } @else { Salva area }
+            </button>
+            <button type="button" class="btn btn--quiet btn--block" (click)="cancelDrawing()">
+              Annulla
+            </button>
+          </div>
+        }
+      </section>
 
-    <section class="panel__block">
-      <h2>Area sorvegliata</h2>
-      @if (mode() === 'view') {
-        <button type="button" class="btn btn--ghost" (click)="startDrawing()">
-          @if (surveillance()?.area) { Ridisegna } @else { Disegna area }
-        </button>
-      } @else {
-        <p class="muted">{{ drawingPoints().length }} punti.</p>
-        <div class="row">
-          <button type="button" class="btn btn--primary"
-                  [disabled]="!hasUnsavedDrawing() || busy()"
-                  (click)="finalizeDrawing()">
-            @if (busy()) { Salvataggio… } @else { Salva area }
-          </button>
-          <button type="button" class="btn btn--ghost" (click)="cancelDrawing()">Annulla</button>
-        </div>
-      }
-    </section>
-
-    <section class="panel__block">
-      <h2>Evidenze</h2>
-      <p class="muted">{{ surveillance()?.findings?.length || 0 }} sul posto.</p>
-      <p class="muted small">Aggiunta-evidenza-da-mappa: in arrivo.</p>
-    </section>
+      <section class="panel__block">
+        <h3 class="panel__heading">Evidenze</h3>
+        <p class="panel__count">
+          <span class="tabular">{{ surveillance()?.findings?.length || 0 }}</span>
+          <span class="muted">sul terreno</span>
+        </p>
+        <p class="panel__note muted">Aggiunta da mappa: in arrivo.</p>
+      </section>
+    </div>
   </aside>
 </section>

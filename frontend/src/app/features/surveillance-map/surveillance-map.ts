@@ -67,6 +67,7 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
   readonly enabledSources = signal<Set<string>>(new Set());
   readonly mode = signal<Mode>('view');
   readonly drawingPoints = signal<[number, number][]>([]);
+  readonly panelCollapsed = signal(false);
 
   readonly hasUnsavedDrawing = computed(() => this.drawingPoints().length >= 3);
 
@@ -139,31 +140,35 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
       type: 'geojson',
       data: this.areaFeature(s.area),
     });
+    // Match the --field-area token so the map agrees with the rest of the UI.
+    const areaColor = this.cssVar('--field-area', 'oklch(0.50 0.090 145)');
     this.map.addLayer({
       id: 'area-fill',
       type: 'fill',
       source: 'area',
-      paint: { 'fill-color': '#2c5d3f', 'fill-opacity': 0.18 },
+      paint: { 'fill-color': areaColor, 'fill-opacity': 0.18 },
     });
     this.map.addLayer({
       id: 'area-outline',
       type: 'line',
       source: 'area',
-      paint: { 'line-color': '#2c5d3f', 'line-width': 2 },
+      paint: { 'line-color': areaColor, 'line-width': 2 },
     });
 
     this.map.addSource('findings', {
       type: 'geojson',
       data: this.findingsCollection(s),
     });
+    const findingColor = this.cssVar('--field-finding', 'oklch(0.62 0.130 60)');
+    const surfaceColor = this.cssVar('--surface', 'oklch(0.985 0.012 80)');
     this.map.addLayer({
       id: 'findings-points',
       type: 'circle',
       source: 'findings',
       paint: {
         'circle-radius': 6,
-        'circle-color': '#c97b30',
-        'circle-stroke-color': '#fff',
+        'circle-color': findingColor,
+        'circle-stroke-color': surfaceColor,
         'circle-stroke-width': 2,
       },
     });
@@ -172,19 +177,31 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
       type: 'geojson',
       data: this.drawingFeature(),
     });
+    const accent = this.cssVar('--accent', 'oklch(0.52 0.155 32)');
     this.map.addLayer({
       id: 'drawing-line',
       type: 'line',
       source: 'drawing',
-      paint: { 'line-color': '#b00020', 'line-width': 2, 'line-dasharray': [2, 2] },
+      paint: { 'line-color': accent, 'line-width': 2, 'line-dasharray': [2, 2] },
     });
     this.map.addLayer({
       id: 'drawing-points',
       type: 'circle',
       source: 'drawing',
       filter: ['==', '$type', 'Point'],
-      paint: { 'circle-radius': 5, 'circle-color': '#b00020' },
+      paint: { 'circle-radius': 5, 'circle-color': accent, 'circle-stroke-color': '#fff', 'circle-stroke-width': 1 },
     });
+  }
+
+  /**
+   * Read a CSS custom property from the document root. MapLibre paint
+   * properties want a literal colour string, so we resolve once at layer
+   * creation and don't try to make them reactive.
+   */
+  private cssVar(name: string, fallback: string): string {
+    if (typeof getComputedStyle === 'undefined') return fallback;
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
   }
 
   // ---- WMS layer toggle ------------------------------------------------
