@@ -6,6 +6,13 @@ import { GitHubAuthService } from '../../core/github/auth.service';
 import { IndexRepoService } from '../../core/storage/index-repo';
 import { SurveillanceIndexEntry } from '../../core/types/surveillance';
 
+const STATUS_LABELS: Record<SurveillanceIndexEntry['status'], string> = {
+  draft: 'bozza',
+  'in-progress': 'in lavorazione',
+  submitted: 'consegnata',
+  archived: 'archiviata',
+};
+
 @Component({
   selector: 'app-surveillances-list',
   imports: [CommonModule, RouterLink],
@@ -43,5 +50,26 @@ export class SurveillancesList {
   signOut(): void {
     this.auth.logout();
     this.router.navigate(['/login']);
+  }
+
+  formatNumber(n: number): string {
+    return n.toString().padStart(3, '0');
+  }
+
+  formatRange(s: SurveillanceIndexEntry): string {
+    if (!s.start_date && !s.end_date) return '—';
+    const fmt = (d: string | null | undefined) => (d ? this.formatDate(d) : '—');
+    return `${fmt(s.start_date)} → ${fmt(s.end_date)}`;
+  }
+
+  private formatDate(iso: string): string {
+    // Italian short form: dd · mm · yyyy
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+    if (!m) return iso;
+    return `${m[3]}.${m[2]}.${m[1]}`;
+  }
+
+  statusLabel(s: SurveillanceIndexEntry['status']): string {
+    return STATUS_LABELS[s] ?? s;
   }
 }

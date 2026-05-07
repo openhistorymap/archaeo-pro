@@ -1,40 +1,51 @@
 <section class="page">
   <nav class="page__crumbs">
-    <a routerLink="/">← Sorveglianze</a>
+    <a routerLink="/" class="page__back">← Registro</a>
   </nav>
 
-  <h1>Nuova sorveglianza</h1>
-  <p class="muted">
-    Verrà creato un repository GitHub privato dedicato (<code>archaeo-pro-{{ '{uuid}' }}</code>) e una voce nell'indice.
-  </p>
+  <header class="page__head">
+    <p class="page__eyebrow">apri una nuova</p>
+    <h1 class="page__title">Sorveglianza archeologica</h1>
+    <p class="page__lede prose muted">
+      Verrà creato un repository GitHub privato dedicato
+      (<code>archaeo-pro-{{ '{uuid}' }}</code>) e una voce nel tuo registro.
+      I dettagli si compilano dopo, dalla scheda della sorveglianza.
+    </p>
+  </header>
 
   <form class="form" [formGroup]="form" (ngSubmit)="submit()">
-    <label class="field">
-      <span>Titolo *</span>
-      <input type="text" formControlName="title" autocomplete="off" placeholder="es. Sorveglianza via Roma 12" />
-    </label>
+    <div class="field">
+      <label class="field__label" for="title">Titolo<span aria-hidden="true">*</span></label>
+      <input id="title" type="text" formControlName="title" autocomplete="off"
+             placeholder="es. Sorveglianza via Roma 12, scavi pre-edili" />
+      <p class="field__hint muted">
+        Comparirà come titolo del repository e in cima alla relazione di Soprintendenza.
+      </p>
+    </div>
 
-    <label class="field">
-      <span>Protocollo</span>
-      <input type="text" formControlName="protocollo" placeholder="es. 2026/0001" />
-    </label>
+    <div class="field">
+      <label class="field__label" for="protocollo">Numero di protocollo</label>
+      <input id="protocollo" type="text" formControlName="protocollo"
+             placeholder="es. 2026/0001 — facoltativo, si può aggiungere dopo" />
+    </div>
 
     <div class="row">
-      <label class="field field--grow">
-        <span>Comune</span>
-        <input type="text" formControlName="comune" placeholder="Bologna" />
-      </label>
-      <label class="field field--narrow">
-        <span>Provincia</span>
-        <input type="text" formControlName="provincia" placeholder="BO" maxlength="3" />
-      </label>
+      <div class="field field--grow">
+        <label class="field__label" for="comune">Comune</label>
+        <input id="comune" type="text" formControlName="comune" placeholder="Bologna" />
+      </div>
+      <div class="field field--narrow">
+        <label class="field__label" for="provincia">Pr.</label>
+        <input id="provincia" type="text" formControlName="provincia"
+               placeholder="BO" maxlength="3" />
+      </div>
     </div>
 
     @if (error()) {
-      <p class="error">{{ error() }}</p>
+      <p class="form__error">{{ error() }}</p>
     }
 
-    <div class="actions">
+    <div class="form__actions">
       <a routerLink="/" class="btn btn--ghost">Annulla</a>
       <button type="submit" class="btn btn--primary" [disabled]="form.invalid || busy()">
         @if (busy()) { Creazione del repository… } @else { Crea sorveglianza }

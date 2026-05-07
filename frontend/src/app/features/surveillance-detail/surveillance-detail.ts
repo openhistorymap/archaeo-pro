@@ -4,14 +4,15 @@ import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { ApiService } from '../../core/api.service';
+import { PhotoThumb } from '../../core/components/photo-thumb';
 import { GitHubClient, RepoRef } from '../../core/github/client';
 import { IndexRepoService } from '../../core/storage/index-repo';
 import { SurveillanceStore } from '../../core/storage/surveillance-store';
-import { Photo, Surveillance } from '../../core/types/surveillance';
+import { Surveillance } from '../../core/types/surveillance';
 
 @Component({
   selector: 'app-surveillance-detail',
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, PhotoThumb],
   templateUrl: './surveillance-detail.html',
   styleUrl: './surveillance-detail.scss',
 })

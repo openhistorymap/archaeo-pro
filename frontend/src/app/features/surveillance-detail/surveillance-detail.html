@@ -1,111 +1,149 @@
 <section class="page">
-  <nav class="page__crumbs">
-    <a routerLink="/">← Sorveglianze</a>
-    @if (repoUrl(); as url) {
-      <a class="page__repo" [href]="url" target="_blank" rel="noopener">repo ↗</a>
-    }
-  </nav>
-
   @if (loading()) {
-    <p class="muted">Caricamento dal repository…</p>
+    <p class="page__state muted">Lettura del repository…</p>
   } @else if (error() && !surveillance()) {
-    <p class="error">{{ error() }}</p>
+    <p class="page__state page__state--error">{{ error() }}</p>
   } @else if (surveillance(); as s) {
+
+    <nav class="page__crumbs">
+      <a routerLink="/" class="page__back">← Registro</a>
+      @if (repoUrl(); as url) {
+        <a class="page__repo" [href]="url" target="_blank" rel="noopener">repository ↗</a>
+      }
+    </nav>
+
     <header class="page__head">
-      <h1>{{ s.title }}</h1>
-      <div class="actions">
-        <a [routerLink]="['/surveillances', s.id, 'map']" class="btn btn--ghost">Mappa</a>
-        <button type="button" class="btn btn--ghost" [disabled]="busy()" (click)="generate('docx')">DOCX</button>
-        <button type="button" class="btn btn--ghost" [disabled]="busy()" (click)="generate('pdf')">PDF</button>
-        <button type="button" class="btn btn--primary" [disabled]="busy()" (click)="save()">Salva</button>
-      </div>
+      <p class="page__eyebrow">scheda della sorveglianza</p>
+      <h1 class="page__title">{{ s.title }}</h1>
+      @if (s.protocollo) {
+        <p class="page__sub muted">prot. n. <span class="tabular">{{ s.protocollo }}</span></p>
+      }
     </header>
 
     <form class="form" [formGroup]="form" (ngSubmit)="save()">
-      <fieldset class="grid">
-        <legend>Intestazione</legend>
-        <label class="field span-2">
-          <span>Titolo</span>
-          <input type="text" formControlName="title" />
-        </label>
-        <label class="field">
-          <span>Protocollo</span>
-          <input type="text" formControlName="protocollo" />
-        </label>
-        <label class="field">
-          <span>Committente</span>
-          <input type="text" formControlName="committente" />
-        </label>
-        <label class="field">
-          <span>Direttore tecnico</span>
-          <input type="text" formControlName="direttore_tecnico" />
-        </label>
-        <label class="field">
-          <span>SABAP competente</span>
-          <input type="text" formControlName="sabap" />
-        </label>
-        <label class="field">
-          <span>Comune</span>
-          <input type="text" formControlName="comune" />
-        </label>
-        <label class="field">
-          <span>Provincia</span>
-          <input type="text" formControlName="provincia" maxlength="3" />
-        </label>
-        <label class="field">
-          <span>Foglio catastale</span>
-          <input type="text" formControlName="foglio_catastale" />
-        </label>
-        <label class="field">
-          <span>Particelle</span>
-          <input type="text" formControlName="particelle" />
-        </label>
-        <label class="field">
-          <span>Inizio</span>
-          <input type="date" formControlName="start_date" />
-        </label>
-        <label class="field">
-          <span>Fine</span>
-          <input type="date" formControlName="end_date" />
-        </label>
-        <label class="field span-2">
-          <span>Normativa di riferimento</span>
-          <input type="text" formControlName="normativa" placeholder="D.Lgs. 42/2004; D.Lgs. 36/2023…" />
-        </label>
+      <fieldset class="form__section">
+        <legend class="form__legend">
+          <span class="form__legend-num">i.</span>
+          <span class="form__legend-title">Intestazione</span>
+        </legend>
+
+        <div class="grid">
+          <label class="field span-2">
+            <span class="field__label">Titolo</span>
+            <input type="text" formControlName="title" />
+          </label>
+          <label class="field">
+            <span class="field__label">Protocollo</span>
+            <input type="text" formControlName="protocollo" />
+          </label>
+          <label class="field">
+            <span class="field__label">Committente</span>
+            <input type="text" formControlName="committente" />
+          </label>
+          <label class="field">
+            <span class="field__label">Direttore tecnico</span>
+            <input type="text" formControlName="direttore_tecnico" />
+          </label>
+          <label class="field">
+            <span class="field__label">Soprintendenza (SABAP)</span>
+            <input type="text" formControlName="sabap" placeholder="es. SABAP per la città metropolitana di Bologna" />
+          </label>
+          <label class="field">
+            <span class="field__label">Comune</span>
+            <input type="text" formControlName="comune" />
+          </label>
+          <label class="field field--narrow">
+            <span class="field__label">Provincia</span>
+            <input type="text" formControlName="provincia" maxlength="3" />
+          </label>
+          <label class="field">
+            <span class="field__label">Foglio catastale</span>
+            <input type="text" formControlName="foglio_catastale" />
+          </label>
+          <label class="field">
+            <span class="field__label">Particelle</span>
+            <input type="text" formControlName="particelle" />
+          </label>
+          <label class="field">
+            <span class="field__label">Inizio indagine</span>
+            <input type="date" formControlName="start_date" />
+          </label>
+          <label class="field">
+            <span class="field__label">Fine indagine</span>
+            <input type="date" formControlName="end_date" />
+          </label>
+          <label class="field span-2">
+            <span class="field__label">Normativa di riferimento</span>
+            <input type="text" formControlName="normativa"
+                   placeholder="D.Lgs. 42/2004 · D.Lgs. 36/2023 · prescrizioni SABAP del…" />
+          </label>
+        </div>
       </fieldset>
 
-      <fieldset>
-        <legend>Premessa</legend>
-        <textarea formControlName="premessa" rows="4"></textarea>
+      <fieldset class="form__section">
+        <legend class="form__legend">
+          <span class="form__legend-num">ii.</span>
+          <span class="form__legend-title">Premessa</span>
+        </legend>
+        <textarea formControlName="premessa" rows="4"
+          placeholder="Inquadramento normativo, soggetti coinvolti, prescrizioni della Soprintendenza…"></textarea>
       </fieldset>
 
-      <fieldset>
-        <legend>Metodologia</legend>
-        <textarea formControlName="metodologia" rows="4"></textarea>
+      <fieldset class="form__section">
+        <legend class="form__legend">
+          <span class="form__legend-num">iii.</span>
+          <span class="form__legend-title">Metodologia</span>
+        </legend>
+        <textarea formControlName="metodologia" rows="4"
+          placeholder="Tecniche di scavo, profondità raggiunte, criteri di campionatura, strumentazione…"></textarea>
       </fieldset>
 
-      <fieldset>
-        <legend>Risultati</legend>
-        <textarea formControlName="risultati" rows="6"></textarea>
+      <fieldset class="form__section">
+        <legend class="form__legend">
+          <span class="form__legend-num">iv.</span>
+          <span class="form__legend-title">Risultati</span>
+        </legend>
+        <textarea formControlName="risultati" rows="6"
+          placeholder="Descrizione delle evidenze emerse o, se del caso, della loro assenza, con riferimento alle UU.SS.…"></textarea>
       </fieldset>
 
-      <fieldset>
-        <legend>Conclusioni</legend>
-        <textarea formControlName="conclusioni" rows="3"></textarea>
+      <fieldset class="form__section">
+        <legend class="form__legend">
+          <span class="form__legend-num">v.</span>
+          <span class="form__legend-title">Conclusioni</span>
+        </legend>
+        <textarea formControlName="conclusioni" rows="3"
+          placeholder="Sintesi, indicazioni per i prosecutori dei lavori, eventuali raccomandazioni…"></textarea>
       </fieldset>
     </form>
 
     <section class="block">
-      <h2>Evidenze archeologiche ({{ s.findings.length }})</h2>
+      <header class="block__head">
+        <h2 class="block__title">
+          <span class="block__num">vi.</span>
+          Evidenze archeologiche
+          <span class="block__count">({{ s.findings.length }})</span>
+        </h2>
+        <a [routerLink]="['/surveillances', s.id, 'map']" class="btn btn--ghost btn--sm">
+          Apri sulla mappa
+        </a>
+      </header>
       @if (s.findings.length === 0) {
-        <p class="muted">Nessuna evidenza registrata. L'editor delle evidenze + UU.SS. arriva nel prossimo aggiornamento.</p>
+        <p class="block__empty muted">
+          Nessuna evidenza ancora registrata. Le evidenze si aggiungono dalla
+          mappa, posizionandole sul terreno.
+        </p>
       } @else {
         <ul class="findings">
           @for (f of s.findings; track f.id) {
             <li class="finding">
-              <strong>{{ f.name }}</strong>
-              <span class="muted">— {{ f.start_date || '—' }} / {{ f.end_date || '—' }} · {{ f.units.length }} UU.SS.</span>
-              @if (f.description) { <p>{{ f.description }}</p> }
+              <p class="finding__name">{{ f.name }}</p>
+              <p class="finding__meta muted">
+                <span class="tabular">{{ f.start_date || '—' }} / {{ f.end_date || '—' }}</span>
+                <span class="finding__sep" aria-hidden="true">·</span>
+                <span>{{ f.units.length }} UU.SS.</span>
+              </p>
+              @if (f.description) { <p class="finding__desc">{{ f.description }}</p> }
             </li>
           }
         </ul>
@@ -113,17 +151,31 @@
     </section>
 
     <section class="block">
-      <h2>Documentazione fotografica ({{ s.photos.length }})</h2>
-      <label class="upload">
-        <input type="file" accept="image/*" multiple (change)="onPhotoSelected($event)" hidden #fileInput />
-        <button type="button" class="btn btn--ghost" [disabled]="busy()" (click)="fileInput.click()">+ Aggiungi foto</button>
-      </label>
-      @if (s.photos.length > 0) {
+      <header class="block__head">
+        <h2 class="block__title">
+          <span class="block__num">vii.</span>
+          Documentazione fotografica
+          <span class="block__count">({{ s.photos.length }})</span>
+        </h2>
+        <label class="upload">
+          <input type="file" accept="image/*" multiple (change)="onPhotoSelected($event)" hidden #fileInput />
+          <button type="button" class="btn btn--ghost btn--sm" [disabled]="busy()" (click)="fileInput.click()">
+            + Aggiungi foto
+          </button>
+        </label>
+      </header>
+
+      @if (s.photos.length === 0) {
+        <p class="block__empty muted">
+          Nessuna immagine acquisita. Le foto vengono ridimensionate
+          automaticamente prima del caricamento.
+        </p>
+      } @else {
         <ul class="photos">
           @for (p of s.photos; track p.id) {
-            <li class="photo">
-              <span class="photo__name">{{ p.filename }}</span>
-              @if (p.caption) { <span class="muted">— {{ p.caption }}</span> }
+            <li class="photos__item">
+              <app-photo-thumb [photo]="p" />
+              <p class="photos__cap muted">{{ p.caption || p.filename }}</p>
             </li>
           }
         </ul>
@@ -131,7 +183,19 @@
     </section>
 
     @if (error()) {
-      <p class="error">{{ error() }}</p>
+      <p class="form__error">{{ error() }}</p>
     }
+
+    <div class="page__toolbar">
+      <span class="page__toolbar-meta muted">
+        Aggiornata <span class="tabular">{{ s.updated_at | date:'dd.MM.yyyy HH:mm' }}</span>
+      </span>
+      <div class="page__toolbar-actions">
+        <a [routerLink]="['/surveillances', s.id, 'map']" class="btn btn--ghost">Mappa</a>
+        <button type="button" class="btn btn--ghost" [disabled]="busy()" (click)="generate('docx')">DOCX</button>
+        <button type="button" class="btn btn--ghost" [disabled]="busy()" (click)="generate('pdf')">PDF</button>
+        <button type="button" class="btn btn--primary" [disabled]="busy()" (click)="save()">Salva</button>
+      </div>
+    </div>
   }
 </section>
