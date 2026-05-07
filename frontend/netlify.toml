@@ -1,0 +1,71 @@
+# Netlify build + routing config.
+#
+# The PWA is served from archaeo.pro (canonical) and archeo.pro (typo-fix
+# redirect). All API traffic is proxied to the Vercel backend so the PWA
+# never has to deal with CORS in prod.
+#
+# Before first deploy, set in Netlify dashboard → Site settings → Environment:
+#   GITHUB_CLIENT_ID_PROD = <prod OAuth App client id>
+#   API_URL               = https://<your-vercel-app>.vercel.app
+#
+# The build command bakes GITHUB_CLIENT_ID_PROD into environment.prod.ts.
+
+[build]
+  base = "frontend/"
+  command = """
+    sed -i "s|__GITHUB_CLIENT_ID_PROD__|$GITHUB_CLIENT_ID_PROD|g" src/environments/environment.prod.ts && \
+    npm install --no-audit --no-fund && \
+    npx ng build --configuration=production
+  """
+  publish = "frontend/dist/archaeo-pro/browser"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# --- Reverse-proxy /api routes to Vercel ---------------------------------
+# The PWA hits /wms/*, /documents/*, /auth/*, /health on its own origin and
+# Netlify forwards them to the Vercel backend transparently. Set API_URL in
+# the Netlify dashboard.
+
+[[redirects]]
+  from = "/wms/*"
+  to = "${API_URL}/wms/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/documents/*"
+  to = "${API_URL}/documents/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/auth/*"
+  to = "${API_URL}/auth/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/health"
+  to = "${API_URL}/health"
+  status = 200
+  force = true
+
+# --- archeo.pro typo-fix → archaeo.pro -----------------------------------
+[[redirects]]
+  from = "https://archeo.pro/*"
+  to = "https://archaeo.pro/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://www.archeo.pro/*"
+  to = "https://archaeo.pro/:splat"
+  status = 301
+  force = true
+
+# --- SPA fallback (must be last) -----------------------------------------
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

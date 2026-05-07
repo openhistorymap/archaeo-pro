@@ -22,6 +22,7 @@ import {
 } from '../types/surveillance';
 import { GitHubAuthService } from '../github/auth.service';
 import { GitHubClient, RepoRef } from '../github/client';
+import { resizeImage } from '../utils/image-resize';
 import { IndexRepoService } from './index-repo';
 
 const SURVEILLANCE_REPO_PREFIX = 'archaeo-pro-';
@@ -214,11 +215,15 @@ export class SurveillanceStore {
 
   async attachPhoto(ref: RepoRef, file: File, meta: Omit<Photo, 'id' | 'asset_id' | 'asset_url'>): Promise<Photo> {
     const id = uuidv4();
+    // Downscale before upload so 10 MB phone photos don't hammer mobile data
+    // and don't blow Vercel's body cap when later POSTed to /documents/*.
+    const optimized = await resizeImage(file);
     const release = await this.gh.ensureRelease(ref, PHOTOS_RELEASE_TAG, 'archaeo-pro photo binaries');
-    const asset = await this.gh.uploadReleaseAsset(ref, release.id, `${id}-${file.name}`, file.type || 'image/jpeg', file);
+    const asset = await this.gh.uploadReleaseAsset(ref, release.id, `${id}-${optimized.name}`, optimized.type || 'image/jpeg', optimized);
     const photo: Photo = {
       ...meta,
       id,
+      filename: optimized.name,
       asset_id: asset.id,
       asset_url: asset.url,
     };
@@ -226,7 +231,7 @@ export class SurveillanceStore {
       ref,
       `photos/${id}.json`,
       JSON.stringify(photo, null, 2) + '\n',
-      `archaeo-pro: add photo ${file.name}`,
+      `archaeo-pro: add photo ${optimized.name}`,
     );
     return photo;
   }
