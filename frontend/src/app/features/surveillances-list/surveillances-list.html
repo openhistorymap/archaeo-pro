@@ -1,0 +1,34 @@
+<section class="page">
+  <header class="page__head">
+    <h1>Sorveglianze</h1>
+    <a routerLink="/new" class="btn btn--primary">+ Nuova sorveglianza</a>
+  </header>
+
+  @if (loading()) {
+    <p class="muted">Caricamento…</p>
+  } @else if (error()) {
+    <p class="error">Impossibile caricare le sorveglianze: {{ error() }}</p>
+  } @else if (items().length === 0) {
+    <div class="empty">
+      <p>Nessuna sorveglianza ancora registrata.</p>
+      <a routerLink="/new" class="btn btn--primary">Inizia la prima</a>
+    </div>
+  } @else {
+    <ul class="cards">
+      @for (s of items(); track s.id) {
+        <li class="card">
+          <a [routerLink]="['/surveillances', s.id]" class="card__link">
+            <h2 class="card__title">{{ s.title }}</h2>
+            <p class="card__meta">
+              {{ s.comune || '—' }}{{ s.provincia ? ' (' + s.provincia + ')' : '' }}
+              · {{ s.protocollo || 'senza protocollo' }}
+            </p>
+            <p class="card__dates">
+              {{ s.start_date || '—' }} → {{ s.end_date || '—' }}
+            </p>
+          </a>
+        </li>
+      }
+    </ul>
+  }
+</section>

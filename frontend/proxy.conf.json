@@ -1,0 +1,37 @@
+{
+  "/surveillances": {
+    "target": "http://api:8000",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/photos": {
+    "target": "http://api:8000",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/wms": {
+    "target": "http://api:8000",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/documents": {
+    "target": "http://api:8000",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/ohm": {
+    "target": "http://api:8000",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/uploads": {
+    "target": "http://api:8000",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/health": {
+    "target": "http://api:8000",
+    "secure": false,
+    "changeOrigin": true
+  }
+}
