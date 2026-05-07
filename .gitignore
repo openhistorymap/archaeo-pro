@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Angular
+node_modules/
+dist/
+.angular/
+*.log
+.cache/
+
+# Env / secrets
+.env
+.env.local
+*.local
+
+# OS / editor / tools
+.DS_Store
+.idea/
+.vscode/
+.claude/
+*.swp
+
+# Build artefacts
+backend/uploads/
+backend/exports/
+*.sqlite
+*.db
+
+# Generated documents (kept out of git; reproducible)
+*.docx.tmp
+*.pdf.tmp

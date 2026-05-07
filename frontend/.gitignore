@@ -1,0 +1,5 @@
+# Angular CLI fills this in after `ng new`.
+node_modules/
+dist/
+.angular/
+*.log

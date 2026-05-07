@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-archaeo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-archaeo}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-archaeo} -d ${POSTGRES_DB:-archaeo}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://archaeo:changeme@db:5432/archaeo}
+      UPLOADS_DIR: /data/uploads
+      EXPORTS_DIR: /data/exports
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:4200}
+    volumes:
+      - api_data:/data
+      - ./backend:/app
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    depends_on:
+      - api
+    environment:
+      API_BASE_URL: ${API_BASE_URL:-http://localhost:8000}
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "${FRONTEND_PORT:-4200}:4200"
+    command: ["sh", "-c", "npm install && npx ng serve --host 0.0.0.0 --port 4200"]
+
+volumes:
+  db_data:
+  api_data:
