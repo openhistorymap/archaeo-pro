@@ -1,0 +1,7 @@
+# Netlify reads this from the publish dir as a belt-and-suspenders for the
+# rules in netlify.toml. The redirects with env-var substitution must stay
+# in netlify.toml; this file only carries the SPA fallback so even if
+# netlify.toml has a parse hiccup, /auth/callback and other SPA routes
+# still resolve to index.html instead of 404.
+
+/*    /index.html   200
