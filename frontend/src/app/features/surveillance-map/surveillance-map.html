@@ -60,10 +60,13 @@
         } @else {
           <ul class="layers">
             @for (s of wmsSources(); track s.id) {
-              <li class="layer">
+              <li class="layer" [class.layer--failing]="isFailing(s)">
                 <label class="layer__label">
                   <input type="checkbox" [checked]="isEnabled(s)" (change)="toggleSource(s)" />
                   <span class="layer__name">{{ s.label }}</span>
+                  @if (isFailing(s)) {
+                    <span class="layer__warn" title="Tile non caricabile dall'upstream — controlla URL/livello su Vercel">!</span>
+                  }
                 </label>
               </li>
             }

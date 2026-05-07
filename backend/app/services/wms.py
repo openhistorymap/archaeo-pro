@@ -28,22 +28,21 @@ SOURCES: dict[str, WmsSource] = {
         label="Vincoli in Rete (MiC)",
         url=settings.wms_vincoli_url,
         headers={"Referer": "https://vincoliinrete.beniculturali.it/"},
-        # Layer name varies by service version — verify via GetCapabilities.
-        default_layers=("vir:vincoli_archeologici",),
+        default_layers=(settings.wms_vincoli_layer,),
     ),
     "ispra": WmsSource(
         id="ispra",
         label="ISPRA — Carta Geologica d'Italia",
         url=settings.wms_ispra_url,
         headers={},
-        default_layers=("0",),
+        default_layers=(settings.wms_ispra_layer,),
     ),
     "pcn": WmsSource(
         id="pcn",
         label="Geoportale Nazionale (PCN) — ortofoto",
         url=settings.wms_pcn_url,
         headers={},
-        default_layers=("OI.ORTOIMMAGINI.2012",),
+        default_layers=(settings.wms_pcn_layer,),
     ),
 }
 

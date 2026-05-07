@@ -186,6 +186,22 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
     this.map.on('load', () => this.onMapLoad(s));
     this.map.on('click', (e) => this.onMapClick(e));
     this.map.on('dblclick', (e) => this.onMapDoubleClick(e));
+    this.map.on('error', (e) => this.onMapError(e));
+  }
+
+  private readonly tileFailures = signal<Set<string>>(new Set());
+
+  private onMapError(e: { sourceId?: string; error?: unknown }): void {
+    // MapLibre raises errors on tile load failures; we surface the source
+    // id so the user can see *which* WMS layer is broken (often the
+    // upstream URL or layer name needs an env-var override on Vercel).
+    const sourceId = e.sourceId;
+    if (sourceId && sourceId.startsWith('wms-')) {
+      const id = sourceId.slice(4);
+      const next = new Set(this.tileFailures());
+      next.add(id);
+      this.tileFailures.set(next);
+    }
   }
 
   private onMapLoad(s: Surveillance): void {
@@ -196,8 +212,12 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
       type: 'geojson',
       data: this.areaFeature(s.area),
     });
-    // Match the --field-area token so the map agrees with the rest of the UI.
-    const areaColor = this.cssVar('--field-area', 'oklch(0.50 0.090 145)');
+    // Use literal hex for MapLibre paint — Maplibre v4's paint expressions
+    // do not always parse oklch() values, which made the layers silently
+    // invisible when read from CSS custom properties. Pin known-good RGB
+    // equivalents of the design tokens here. Theme-aware paint can be a
+    // follow-up via the map's setPaintProperty.
+    const areaColor = '#3a8050';     // matches --field-area (leaf green)
     this.map.addLayer({
       id: 'area-fill',
       type: 'fill',
@@ -215,8 +235,7 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
       type: 'geojson',
       data: this.findingsCollection(s),
     });
-    const findingColor = this.cssVar('--field-finding', 'oklch(0.62 0.130 60)');
-    const surfaceColor = this.cssVar('--surface', 'oklch(0.985 0.012 80)');
+    const findingColor = '#c97b30';  // matches --field-finding (warm ochre)
     this.map.addLayer({
       id: 'findings-points',
       type: 'circle',
@@ -234,7 +253,7 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
       type: 'geojson',
       data: this.drawingFeature(),
     });
-    const accent = this.cssVar('--accent', 'oklch(0.52 0.155 32)');
+    const accent = '#a23816';        // matches --accent (iron oxide)
     this.map.addLayer({
       id: 'drawing-line',
       type: 'line',
@@ -271,31 +290,12 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
       paint: {
         'circle-radius': 7,
         'circle-color': accent,
-        'circle-stroke-color': surfaceColor,
+        'circle-stroke-color': '#ffffff',
         'circle-stroke-width': 2,
       },
     });
   }
 
-  /**
-   * Read a CSS custom property and resolve it to a concrete colour string
-   * (typically rgb()) that MapLibre's paint expressions accept on every
-   * version. Reading var() directly via getPropertyValue returns the
-   * specified value (e.g. "oklch(...)") which older MapLibre paint code
-   * paths do not parse, leaving layers invisible — applying the var to a
-   * real element forces the browser to compute it.
-   */
-  private cssVar(name: string, fallback: string): string {
-    if (typeof document === 'undefined' || typeof getComputedStyle === 'undefined') return fallback;
-    const probe = document.createElement('span');
-    probe.style.position = 'absolute';
-    probe.style.visibility = 'hidden';
-    probe.style.color = `var(${name}, ${fallback})`;
-    document.body.appendChild(probe);
-    const resolved = getComputedStyle(probe).color;
-    probe.remove();
-    return resolved || fallback;
-  }
 
   // ---- WMS layer toggle ------------------------------------------------
 
@@ -307,18 +307,25 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
       if (this.map.getLayer(id)) this.map.removeLayer(id);
       if (this.map.getSource(id)) this.map.removeSource(id);
       next.delete(source.id);
+      // Clear any prior failure flag for this source.
+      const failures = new Set(this.tileFailures());
+      failures.delete(source.id);
+      this.tileFailures.set(failures);
     } else {
       this.map.addSource(id, {
         type: 'raster',
         tiles: [this.api.wmsTileUrl(source.id, source.default_layers)],
         tileSize: 256,
       });
-      // Place WMS layers under the area/findings overlays.
       const before = this.map.getLayer('area-fill') ? 'area-fill' : undefined;
       this.map.addLayer({ id, type: 'raster', source: id, paint: { 'raster-opacity': 0.7 } }, before);
       next.add(source.id);
     }
     this.enabledSources.set(next);
+  }
+
+  isFailing(source: WmsSource): boolean {
+    return this.tileFailures().has(source.id);
   }
 
   isEnabled(source: WmsSource): boolean {

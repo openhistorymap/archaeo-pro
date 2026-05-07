@@ -453,6 +453,24 @@
   line-height: var(--leading-snug);
 }
 
+.layer--failing .layer__name { color: var(--text-soft); }
+
+.layer__warn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 700;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
 /* --- Mobile bottom-sheet shape ------------------------------------- */
 
 @media (max-width: 700px) {

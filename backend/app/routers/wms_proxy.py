@@ -35,14 +35,25 @@ async def proxy(source_id: str, request: Request) -> Response:
         raise HTTPException(status_code=404, detail=f"Unknown WMS source '{source_id}'")
 
     # Forward query params as-is; clients pass the standard WMS params.
+    # If the upstream URL already carries query params (e.g. PCN's `?map=`),
+    # merge them rather than replacing.
     params = dict(request.query_params)
-    upstream_url = f"{source.url}?{urlencode(params, doseq=True)}"
+    sep = "&" if "?" in source.url else "?"
+    upstream_url = f"{source.url}{sep}{urlencode(params, doseq=True)}"
 
     async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
         try:
             r = await client.get(upstream_url, headers=source.headers)
         except httpx.HTTPError as exc:
-            raise HTTPException(status_code=502, detail=f"Upstream WMS error: {exc}") from exc
+            # str(exc) is empty for some httpx connection errors — keep the
+            # exception class name so the failure mode (DNS / TLS / timeout
+            # / refused) is at least diagnosable from the browser console.
+            kind = type(exc).__name__
+            msg = str(exc) or "no message"
+            raise HTTPException(
+                status_code=502,
+                detail=f"Upstream WMS '{source_id}' unreachable · {kind}: {msg} · url={source.url}",
+            ) from exc
 
     # Pass through content + content-type; let the browser cache via SW.
     headers = {"Cache-Control": "public, max-age=86400"}
