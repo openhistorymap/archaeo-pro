@@ -150,11 +150,14 @@ export class SurveillanceDetail {
     this.busy.set(true);
     this.error.set(null);
     try {
+      const ref = this.ref();
       const photoBlobs = new Map<string, Blob>();
-      for (const p of s.photos) {
-        if (p.asset_url) {
+      if (ref) {
+        for (const p of s.photos) {
+          if (!p.path) continue;
           try {
-            photoBlobs.set(p.id, await this.gh.downloadReleaseAsset(p.asset_url));
+            const blob = await this.gh.getBinaryFile(ref, p.path, p.content_type ?? 'image/jpeg');
+            if (blob) photoBlobs.set(p.id, blob);
           } catch {
             // skip — render will surface "[immagine non trasmessa]"
           }

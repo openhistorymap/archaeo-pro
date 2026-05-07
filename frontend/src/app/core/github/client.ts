@@ -164,6 +164,65 @@ export class GitHubClient {
     return this.json(res);
   }
 
+  /**
+   * Create or update a binary file (photo, doc, etc.) via the Contents API.
+   * Same shape as putFile but base64-encodes the bytes safely without going
+   * through unescape/encodeURIComponent.
+   */
+  async putBinaryFile(
+    ref: RepoRef,
+    path: string,
+    blob: Blob,
+    message: string,
+    sha?: string,
+  ): Promise<{ content: { sha: string; path: string } }> {
+    const buf = await blob.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    // Chunked btoa avoids "Maximum call stack size exceeded" on large files.
+    let binary = '';
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK)));
+    }
+    const body: Record<string, unknown> = { message, content: btoa(binary) };
+    if (sha) body['sha'] = sha;
+    const res = await fetch(
+      `${API_BASE}/repos/${ref.owner}/${ref.name}/contents/${encodeURI(path)}`,
+      { method: 'PUT', headers: this.headers(), body: JSON.stringify(body) },
+    );
+    return this.json(res);
+  }
+
+  /**
+   * Fetch a binary file by repo path. Decodes the Contents-API base64
+   * response into a Blob with the given content type.
+   *
+   * Files larger than ~1 MB return without inline content; we then fall
+   * back to download_url + auth header for the actual bytes.
+   */
+  async getBinaryFile(ref: RepoRef, path: string, contentType = 'image/jpeg'): Promise<Blob | null> {
+    const res = await fetch(
+      `${API_BASE}/repos/${ref.owner}/${ref.name}/contents/${encodeURI(path)}`,
+      { headers: this.headers() },
+    );
+    if (res.status === 404) return null;
+    const meta = await this.json<GitHubFileContent & { download_url?: string }>(res);
+    if (meta.content) {
+      const binary = atob(meta.content.replace(/\n/g, ''));
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return new Blob([bytes], { type: contentType });
+    }
+    if (meta.download_url) {
+      const blobRes = await fetch(meta.download_url, {
+        headers: { Authorization: this.headers()['Authorization' as keyof HeadersInit] as string },
+      });
+      if (!blobRes.ok) return null;
+      return blobRes.blob();
+    }
+    return null;
+  }
+
   async deleteFile(ref: RepoRef, path: string, sha: string, message: string): Promise<void> {
     const res = await fetch(
       `${API_BASE}/repos/${ref.owner}/${ref.name}/contents/${encodeURI(path)}`,

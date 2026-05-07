@@ -1,6 +1,6 @@
 import { Component, OnDestroy, OnInit, computed, inject, input, signal } from '@angular/core';
 
-import { GitHubClient } from '../github/client';
+import { GitHubClient, RepoRef } from '../github/client';
 import { Photo } from '../types/surveillance';
 
 /**
@@ -66,6 +66,7 @@ export class PhotoThumb implements OnInit, OnDestroy {
   private readonly gh = inject(GitHubClient);
 
   readonly photo = input.required<Photo>();
+  readonly repo = input.required<RepoRef>();
   readonly alt = computed(() => this.photo().caption ?? this.photo().filename ?? 'fotografia');
 
   readonly src = signal<string | null>(null);
@@ -74,13 +75,17 @@ export class PhotoThumb implements OnInit, OnDestroy {
   private blobUrl: string | null = null;
 
   async ngOnInit(): Promise<void> {
-    const url = this.photo().asset_url;
-    if (!url) {
+    const path = this.photo().path;
+    if (!path) {
       this.error.set(true);
       return;
     }
     try {
-      const blob = await this.gh.downloadReleaseAsset(url);
+      const blob = await this.gh.getBinaryFile(this.repo(), path, this.photo().content_type ?? 'image/jpeg');
+      if (!blob) {
+        this.error.set(true);
+        return;
+      }
       this.blobUrl = URL.createObjectURL(blob);
       this.src.set(this.blobUrl);
     } catch {

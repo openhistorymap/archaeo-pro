@@ -26,7 +26,6 @@ import { resizeImage } from '../utils/image-resize';
 import { IndexRepoService } from './index-repo';
 
 const SURVEILLANCE_REPO_PREFIX = 'archaeo-pro-';
-const PHOTOS_RELEASE_TAG = 'data';
 
 interface CreateSurveillanceInput {
   title: string;
@@ -46,8 +45,8 @@ Sorveglianza archeologica gestita da **archaeo-pro**.
 | Comune | ${s.comune ?? '—'} (${s.provincia ?? '—'}) |
 | Periodo | ${s.start_date ?? '—'} → ${s.end_date ?? '—'} |
 
-I dati strutturati sono in \`surveillance.json\`, \`findings/\`, \`units/\`,
-\`photos/\`. I binari delle foto sono asset della Release \`${PHOTOS_RELEASE_TAG}\`.
+I dati strutturati sono in \`surveillance.json\`, \`findings/\`, \`units/\`.
+Le foto risiedono in \`photos/\` (binario + metadati JSON affiancato).
 `;
 
 function uuidv4(): string {
@@ -111,7 +110,6 @@ export class SurveillanceStore {
       'archaeo-pro: init surveillance',
     );
     await this.gh.putFile(ref, '.archaeo-pro/version', '1\n', 'archaeo-pro: pin schema version');
-    await this.gh.ensureRelease(ref, PHOTOS_RELEASE_TAG, 'archaeo-pro photo binaries');
 
     await this.index.putEntry(this.toIndexEntry(surveillance, repo.html_url, ref));
 
@@ -213,25 +211,31 @@ export class SurveillanceStore {
     );
   }
 
-  async attachPhoto(ref: RepoRef, file: File, meta: Omit<Photo, 'id' | 'asset_id' | 'asset_url'>): Promise<Photo> {
+  async attachPhoto(ref: RepoRef, file: File, meta: Omit<Photo, 'id' | 'path' | 'content_type'>): Promise<Photo> {
     const id = uuidv4();
     // Downscale before upload so 10 MB phone photos don't hammer mobile data
-    // and don't blow Vercel's body cap when later POSTed to /documents/*.
+    // and don't blow the Contents API base64 round-trip ceiling.
     const optimized = await resizeImage(file);
-    const release = await this.gh.ensureRelease(ref, PHOTOS_RELEASE_TAG, 'archaeo-pro photo binaries');
-    const asset = await this.gh.uploadReleaseAsset(ref, release.id, `${id}-${optimized.name}`, optimized.type || 'image/jpeg', optimized);
+    const ext = (optimized.type === 'image/png' ? 'png' : 'jpg');
+    const path = `photos/${id}.${ext}`;
+    await this.gh.putBinaryFile(
+      ref,
+      path,
+      optimized,
+      `archaeo-pro: add photo ${optimized.name}`,
+    );
     const photo: Photo = {
       ...meta,
       id,
       filename: optimized.name,
-      asset_id: asset.id,
-      asset_url: asset.url,
+      path,
+      content_type: optimized.type || 'image/jpeg',
     };
     await this.gh.putFile(
       ref,
       `photos/${id}.json`,
       JSON.stringify(photo, null, 2) + '\n',
-      `archaeo-pro: add photo ${optimized.name}`,
+      `archaeo-pro: add photo metadata for ${optimized.name}`,
     );
     return photo;
   }

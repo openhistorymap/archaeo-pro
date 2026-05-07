@@ -33,10 +33,10 @@ export interface Photo {
   taken_at?: string | null;
   /** GeoJSON Point in EPSG:4326, derived from EXIF when available. */
   location?: GeoJSON.Point | null;
-  /** GitHub Release asset ID for the binary; resolved to a download URL on demand. */
-  asset_id?: number | null;
-  /** Asset URL — public for public repos, requires auth for private repos. */
-  asset_url?: string | null;
+  /** Path of the binary inside the surveillance repo, e.g. "photos/<id>.jpg". */
+  path: string;
+  /** Recorded MIME type of the binary. */
+  content_type?: string | null;
 }
 
 export interface Surveillance {

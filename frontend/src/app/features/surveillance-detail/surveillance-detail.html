@@ -174,7 +174,7 @@
         <ul class="photos">
           @for (p of s.photos; track p.id) {
             <li class="photos__item">
-              <app-photo-thumb [photo]="p" />
+              <app-photo-thumb [photo]="p" [repo]="ref()!" />
               <p class="photos__cap muted">{{ p.caption || p.filename }}</p>
             </li>
           }
