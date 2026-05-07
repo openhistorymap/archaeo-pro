@@ -22,14 +22,12 @@ export const routes: Routes = [
     path: 'new',
     canActivate: [authGuard],
     loadComponent: () =>
-      import('./features/surveillances-list/surveillances-list').then((m) => m.SurveillancesList),
-    // TODO(commit 3): real "new surveillance" form.
+      import('./features/surveillance-new/surveillance-new').then((m) => m.SurveillanceNew),
   },
   {
     path: 'surveillances/:id',
     canActivate: [authGuard],
     loadComponent: () =>
-      import('./features/surveillances-list/surveillances-list').then((m) => m.SurveillancesList),
-    // TODO(commit 3): detail/edit view.
+      import('./features/surveillance-detail/surveillance-detail').then((m) => m.SurveillanceDetail),
   },
 ];

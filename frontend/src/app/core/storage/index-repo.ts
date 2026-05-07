@@ -62,6 +62,13 @@ export class IndexRepoService {
     return ref;
   }
 
+  async getEntry(id: string): Promise<SurveillanceIndexEntry | null> {
+    const ref = await this.bootstrap();
+    const f = await this.gh.getFile(ref, `surveillances/${id}.json`);
+    if (!f) return null;
+    return JSON.parse(this.decode(f.content)) as SurveillanceIndexEntry;
+  }
+
   async listEntries(): Promise<SurveillanceIndexEntry[]> {
     const ref = await this.bootstrap();
     const items = await this.gh.listDir(ref, 'surveillances');

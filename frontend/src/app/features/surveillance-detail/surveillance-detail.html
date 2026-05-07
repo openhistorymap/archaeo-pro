@@ -1,0 +1,136 @@
+<section class="page">
+  <nav class="page__crumbs">
+    <a routerLink="/">← Sorveglianze</a>
+    @if (repoUrl(); as url) {
+      <a class="page__repo" [href]="url" target="_blank" rel="noopener">repo ↗</a>
+    }
+  </nav>
+
+  @if (loading()) {
+    <p class="muted">Caricamento dal repository…</p>
+  } @else if (error() && !surveillance()) {
+    <p class="error">{{ error() }}</p>
+  } @else if (surveillance(); as s) {
+    <header class="page__head">
+      <h1>{{ s.title }}</h1>
+      <div class="actions">
+        <button type="button" class="btn btn--ghost" [disabled]="busy()" (click)="generate('docx')">DOCX</button>
+        <button type="button" class="btn btn--ghost" [disabled]="busy()" (click)="generate('pdf')">PDF</button>
+        <button type="button" class="btn btn--primary" [disabled]="busy()" (click)="save()">Salva</button>
+      </div>
+    </header>
+
+    <form class="form" [formGroup]="form" (ngSubmit)="save()">
+      <fieldset class="grid">
+        <legend>Intestazione</legend>
+        <label class="field span-2">
+          <span>Titolo</span>
+          <input type="text" formControlName="title" />
+        </label>
+        <label class="field">
+          <span>Protocollo</span>
+          <input type="text" formControlName="protocollo" />
+        </label>
+        <label class="field">
+          <span>Committente</span>
+          <input type="text" formControlName="committente" />
+        </label>
+        <label class="field">
+          <span>Direttore tecnico</span>
+          <input type="text" formControlName="direttore_tecnico" />
+        </label>
+        <label class="field">
+          <span>SABAP competente</span>
+          <input type="text" formControlName="sabap" />
+        </label>
+        <label class="field">
+          <span>Comune</span>
+          <input type="text" formControlName="comune" />
+        </label>
+        <label class="field">
+          <span>Provincia</span>
+          <input type="text" formControlName="provincia" maxlength="3" />
+        </label>
+        <label class="field">
+          <span>Foglio catastale</span>
+          <input type="text" formControlName="foglio_catastale" />
+        </label>
+        <label class="field">
+          <span>Particelle</span>
+          <input type="text" formControlName="particelle" />
+        </label>
+        <label class="field">
+          <span>Inizio</span>
+          <input type="date" formControlName="start_date" />
+        </label>
+        <label class="field">
+          <span>Fine</span>
+          <input type="date" formControlName="end_date" />
+        </label>
+        <label class="field span-2">
+          <span>Normativa di riferimento</span>
+          <input type="text" formControlName="normativa" placeholder="D.Lgs. 42/2004; D.Lgs. 36/2023…" />
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Premessa</legend>
+        <textarea formControlName="premessa" rows="4"></textarea>
+      </fieldset>
+
+      <fieldset>
+        <legend>Metodologia</legend>
+        <textarea formControlName="metodologia" rows="4"></textarea>
+      </fieldset>
+
+      <fieldset>
+        <legend>Risultati</legend>
+        <textarea formControlName="risultati" rows="6"></textarea>
+      </fieldset>
+
+      <fieldset>
+        <legend>Conclusioni</legend>
+        <textarea formControlName="conclusioni" rows="3"></textarea>
+      </fieldset>
+    </form>
+
+    <section class="block">
+      <h2>Evidenze archeologiche ({{ s.findings.length }})</h2>
+      @if (s.findings.length === 0) {
+        <p class="muted">Nessuna evidenza registrata. L'editor delle evidenze + UU.SS. arriva nel prossimo aggiornamento.</p>
+      } @else {
+        <ul class="findings">
+          @for (f of s.findings; track f.id) {
+            <li class="finding">
+              <strong>{{ f.name }}</strong>
+              <span class="muted">— {{ f.start_date || '—' }} / {{ f.end_date || '—' }} · {{ f.units.length }} UU.SS.</span>
+              @if (f.description) { <p>{{ f.description }}</p> }
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <section class="block">
+      <h2>Documentazione fotografica ({{ s.photos.length }})</h2>
+      <label class="upload">
+        <input type="file" accept="image/*" multiple (change)="onPhotoSelected($event)" hidden #fileInput />
+        <button type="button" class="btn btn--ghost" [disabled]="busy()" (click)="fileInput.click()">+ Aggiungi foto</button>
+      </label>
+      @if (s.photos.length > 0) {
+        <ul class="photos">
+          @for (p of s.photos; track p.id) {
+            <li class="photo">
+              <span class="photo__name">{{ p.filename }}</span>
+              @if (p.caption) { <span class="muted">— {{ p.caption }}</span> }
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    @if (error()) {
+      <p class="error">{{ error() }}</p>
+    }
+  }
+</section>

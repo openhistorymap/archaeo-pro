@@ -6,9 +6,7 @@
         <p class="page__user">@{{ u.login }} <button class="link" (click)="signOut()">esci</button></p>
       }
     </div>
-    <button type="button" class="btn btn--primary" [disabled]="busy()" (click)="createQuick()">
-      + Nuova sorveglianza
-    </button>
+    <a routerLink="/new" class="btn btn--primary">+ Nuova sorveglianza</a>
   </header>
 
   @if (loading()) {
@@ -19,7 +17,7 @@
     <div class="empty">
       <p>Nessuna sorveglianza ancora registrata.</p>
       <p class="muted">Verrà creato un repository <code>archaeo-pro-{{ '{uuid}' }}</code> per ognuna.</p>
-      <button type="button" class="btn btn--primary" [disabled]="busy()" (click)="createQuick()">Inizia la prima</button>
+      <a routerLink="/new" class="btn btn--primary">Inizia la prima</a>
     </div>
   } @else {
     <ul class="cards">

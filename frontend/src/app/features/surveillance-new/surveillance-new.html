@@ -1,0 +1,44 @@
+<section class="page">
+  <nav class="page__crumbs">
+    <a routerLink="/">← Sorveglianze</a>
+  </nav>
+
+  <h1>Nuova sorveglianza</h1>
+  <p class="muted">
+    Verrà creato un repository GitHub privato dedicato (<code>archaeo-pro-{{ '{uuid}' }}</code>) e una voce nell'indice.
+  </p>
+
+  <form class="form" [formGroup]="form" (ngSubmit)="submit()">
+    <label class="field">
+      <span>Titolo *</span>
+      <input type="text" formControlName="title" autocomplete="off" placeholder="es. Sorveglianza via Roma 12" />
+    </label>
+
+    <label class="field">
+      <span>Protocollo</span>
+      <input type="text" formControlName="protocollo" placeholder="es. 2026/0001" />
+    </label>
+
+    <div class="row">
+      <label class="field field--grow">
+        <span>Comune</span>
+        <input type="text" formControlName="comune" placeholder="Bologna" />
+      </label>
+      <label class="field field--narrow">
+        <span>Provincia</span>
+        <input type="text" formControlName="provincia" placeholder="BO" maxlength="3" />
+      </label>
+    </div>
+
+    @if (error()) {
+      <p class="error">{{ error() }}</p>
+    }
+
+    <div class="actions">
+      <a routerLink="/" class="btn btn--ghost">Annulla</a>
+      <button type="submit" class="btn btn--primary" [disabled]="form.invalid || busy()">
+        @if (busy()) { Creazione del repository… } @else { Crea sorveglianza }
+      </button>
+    </div>
+  </form>
+</section>
