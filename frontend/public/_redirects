@@ -12,6 +12,7 @@
 /documents/*                https://archaeo-pro.vercel.app/documents/:splat          200!
 /auth/github/*              https://archaeo-pro.vercel.app/auth/github/:splat        200!
 /health                     https://archaeo-pro.vercel.app/health                    200!
+/health/*                   https://archaeo-pro.vercel.app/health/:splat              200!
 
 # --- archeo.pro typo-fix → archaeo.pro -----------------------------------
 https://archeo.pro/*        https://archaeo.pro/:splat                               301!

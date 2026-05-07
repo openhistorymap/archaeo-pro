@@ -150,6 +150,19 @@ export class SurveillanceDetail {
     this.busy.set(true);
     this.error.set(null);
     try {
+      // Preflight the PDF service before doing anything expensive: rendering
+      // the DOCX, fetching every photo blob, etc. would all be wasted work
+      // if Gotenberg is asleep / down / misconfigured.
+      if (kind === 'pdf') {
+        const status = await this.api.pdfServiceAvailable();
+        if (!status.available) {
+          this.error.set(
+            `Servizio PDF non disponibile (${status.reason ?? 'motivo non noto'}). ` +
+            `Puoi comunque scaricare il DOCX e convertirlo in locale.`,
+          );
+          return;
+        }
+      }
       const ref = this.ref();
       const photoBlobs = new Map<string, Blob>();
       if (ref) {

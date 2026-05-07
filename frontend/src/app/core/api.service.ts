@@ -29,6 +29,21 @@ export class ApiService {
   }
 
   /**
+   * Liveness check for the PDF rendering service (Gotenberg). Called before
+   * a PDF render request so the UI can fail fast with a useful message
+   * instead of waiting through the DOCX step.
+   */
+  async pdfServiceAvailable(): Promise<{ available: boolean; reason?: string }> {
+    try {
+      const res = await fetch(`${this.base}/health/pdf`, { method: 'GET' });
+      if (!res.ok) return { available: false, reason: `health endpoint ${res.status}` };
+      return (await res.json()) as { available: boolean; reason?: string };
+    } catch (err) {
+      return { available: false, reason: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  /**
    * Build a MapLibre raster tile URL for a WMS source. MapLibre interpolates
    * `{bbox-epsg-3857}` per tile request — keep that placeholder literal.
    */
