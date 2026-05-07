@@ -1,19 +1,15 @@
+/**
+ * Calls the (stateless) backend for things that can't happen browser-side:
+ *   - WMS upstream proxying (CORS-blocked at the source)
+ *   - DOCX/PDF rendering (LibreOffice + python-docx)
+ *
+ * All storage operations live in core/storage/* and talk directly to GitHub.
+ */
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
-export interface Surveillance {
-  id: string;
-  title: string;
-  protocollo: string | null;
-  committente: string | null;
-  comune: string | null;
-  provincia: string | null;
-  start_date: string | null;
-  end_date: string | null;
-  created_at: string;
-  updated_at: string;
-}
+import { Surveillance } from './types/surveillance';
 
 export interface WmsSource {
   id: string;
@@ -25,20 +21,8 @@ export interface WmsSource {
 export class ApiService {
   private readonly http = inject(HttpClient);
 
-  /** Base path is empty so requests go through the dev-server proxy. */
+  /** Empty base — requests go through the dev-server proxy in proxy.conf.json. */
   private readonly base = '';
-
-  listSurveillances(): Observable<Surveillance[]> {
-    return this.http.get<Surveillance[]>(`${this.base}/surveillances`);
-  }
-
-  getSurveillance(id: string): Observable<Surveillance> {
-    return this.http.get<Surveillance>(`${this.base}/surveillances/${id}`);
-  }
-
-  createSurveillance(payload: Partial<Surveillance>): Observable<Surveillance> {
-    return this.http.post<Surveillance>(`${this.base}/surveillances`, payload);
-  }
 
   wmsSources(): Observable<WmsSource[]> {
     return this.http.get<WmsSource[]>(`${this.base}/wms/sources`);
@@ -47,5 +31,37 @@ export class ApiService {
   /** URL used directly by MapLibre — never fetched via HttpClient. */
   wmsTileUrl(sourceId: string): string {
     return `${this.base}/wms/${sourceId}`;
+  }
+
+  /**
+   * POST a render-ready surveillance snapshot + photo blobs, get a DOCX back.
+   * The caller is responsible for fetching photo bytes from GitHub Releases
+   * before calling this endpoint.
+   */
+  async renderDocx(surveillance: Surveillance, photoBlobs: Map<string, Blob>): Promise<Blob> {
+    return this.renderDocument(surveillance, photoBlobs, 'docx');
+  }
+
+  async renderPdf(surveillance: Surveillance, photoBlobs: Map<string, Blob>): Promise<Blob> {
+    return this.renderDocument(surveillance, photoBlobs, 'pdf');
+  }
+
+  private async renderDocument(
+    surveillance: Surveillance,
+    photoBlobs: Map<string, Blob>,
+    kind: 'docx' | 'pdf',
+  ): Promise<Blob> {
+    const fd = new FormData();
+    fd.append('surveillance', JSON.stringify(surveillance));
+    for (const [id, blob] of photoBlobs) {
+      // Filename equals the photo id by convention; the backend matches them.
+      fd.append('photos', blob, id);
+    }
+    const res = await fetch(`/documents/${kind}`, { method: 'POST', body: fd });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      throw new Error(`Document render failed (${res.status}): ${detail.slice(0, 200)}`);
+    }
+    return res.blob();
   }
 }

@@ -1,17 +1,25 @@
 <section class="page">
   <header class="page__head">
-    <h1>Sorveglianze</h1>
-    <a routerLink="/new" class="btn btn--primary">+ Nuova sorveglianza</a>
+    <div>
+      <h1>Sorveglianze</h1>
+      @if (user(); as u) {
+        <p class="page__user">@{{ u.login }} <button class="link" (click)="signOut()">esci</button></p>
+      }
+    </div>
+    <button type="button" class="btn btn--primary" [disabled]="busy()" (click)="createQuick()">
+      + Nuova sorveglianza
+    </button>
   </header>
 
   @if (loading()) {
-    <p class="muted">Caricamento…</p>
+    <p class="muted">Caricamento dall'indice GitHub…</p>
   } @else if (error()) {
     <p class="error">Impossibile caricare le sorveglianze: {{ error() }}</p>
-  } @else if (items().length === 0) {
+  } @else if (!hasItems()) {
     <div class="empty">
       <p>Nessuna sorveglianza ancora registrata.</p>
-      <a routerLink="/new" class="btn btn--primary">Inizia la prima</a>
+      <p class="muted">Verrà creato un repository <code>archaeo-pro-{{ '{uuid}' }}</code> per ognuna.</p>
+      <button type="button" class="btn btn--primary" [disabled]="busy()" (click)="createQuick()">Inizia la prima</button>
     </div>
   } @else {
     <ul class="cards">
@@ -21,12 +29,13 @@
             <h2 class="card__title">{{ s.title }}</h2>
             <p class="card__meta">
               {{ s.comune || '—' }}{{ s.provincia ? ' (' + s.provincia + ')' : '' }}
-              · {{ s.protocollo || 'senza protocollo' }}
+              · {{ s.status }}
             </p>
             <p class="card__dates">
               {{ s.start_date || '—' }} → {{ s.end_date || '—' }}
             </p>
           </a>
+          <a class="card__repo" [href]="s.repo_url" target="_blank" rel="noopener">repo ↗</a>
         </li>
       }
     </ul>

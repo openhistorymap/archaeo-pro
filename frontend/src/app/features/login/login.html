@@ -1,0 +1,29 @@
+<section class="login">
+  <div class="login__card">
+    <h1>archaeo-pro</h1>
+    <p class="login__lede">
+      Strumento per le sorveglianze archeologiche. I tuoi dati restano nei tuoi repository GitHub privati.
+    </p>
+
+    @if (clientIdMissing) {
+      <div class="login__warning">
+        <strong>Configurazione mancante.</strong>
+        Imposta <code>githubClientId</code> in <code>environments/environment.ts</code> dopo aver registrato una OAuth App su GitHub
+        (callback: <code>http://localhost:4200/auth/callback</code>).
+      </div>
+    } @else {
+      <button type="button" class="login__btn" [disabled]="busy()" (click)="signIn()">
+        @if (busy()) { Reindirizzamento… } @else { Accedi con GitHub }
+      </button>
+    }
+
+    @if (error()) {
+      <p class="login__error">{{ error() }}</p>
+    }
+
+    <ul class="login__notes">
+      <li>Le tue sorveglianze vengono salvate come repository privati sul tuo account GitHub.</li>
+      <li>Il backend non memorizza nulla: si occupa solo della generazione DOCX/PDF e del proxy WMS.</li>
+    </ul>
+  </div>
+</section>
