@@ -3,42 +3,31 @@
 # The PWA is served from archaeo.pro (canonical) and archeo.pro (typo-fix
 # redirect). All API traffic is proxied to the Vercel backend so the PWA
 # never has to deal with CORS in prod.
-#
-# Before first deploy, set in Netlify dashboard → Site settings → Environment:
-#   GITHUB_CLIENT_ID_PROD = <prod OAuth App client id>
-#   API_URL               = https://<your-vercel-app>.vercel.app
-#
-# The build command bakes GITHUB_CLIENT_ID_PROD into environment.prod.ts.
 
 [build]
-  # `base` is relative to the repo root; `command` and `publish` are then
-  # resolved relative to `base`. So once we set base = "frontend/", we use
-  # in-frontend paths for the rest.
   base = "frontend/"
-  command = """
-    sed -i "s|__GITHUB_CLIENT_ID_PROD__|$GITHUB_CLIENT_ID_PROD|g" src/environments/environment.prod.ts && \
-    npm install --no-audit --no-fund && \
-    npx ng build --configuration=production
-  """
+  command = "sh -c 'sed -i \"s|__GITHUB_CLIENT_ID_PROD__|$GITHUB_CLIENT_ID_PROD|g\" src/environments/environment.prod.ts && npm install --no-audit --no-fund && npx ng build --configuration=production'"
   publish = "dist/archaeo-pro/browser"
 
 [build.environment]
   NODE_VERSION = "20"
 
-# --- Reverse-proxy /api routes to Vercel ---------------------------------
-# The PWA hits /wms/*, /documents/*, /auth/*, /health on its own origin and
-# Netlify forwards them to the Vercel backend transparently. Set API_URL in
-# the Netlify dashboard.
+# --- Reverse-proxy /api routes to the Vercel backend ---------------------
+#
+# We hardcode the URL here. ${API_URL} env-var substitution in [[redirects]]
+# was silently failing (every API path was falling through to the SPA
+# fallback), so we keep it explicit. If the API moves, edit this file —
+# don't try to drive it from Netlify env vars.
 
 [[redirects]]
   from = "/wms/*"
-  to = "${API_URL}/wms/:splat"
+  to = "https://archaeo-pro.vercel.app/wms/:splat"
   status = 200
   force = true
 
 [[redirects]]
   from = "/documents/*"
-  to = "${API_URL}/documents/:splat"
+  to = "https://archaeo-pro.vercel.app/documents/:splat"
   status = 200
   force = true
 
@@ -46,13 +35,13 @@
 # SPA route handled by the Angular router; do NOT proxy it.
 [[redirects]]
   from = "/auth/github/*"
-  to = "${API_URL}/auth/github/:splat"
+  to = "https://archaeo-pro.vercel.app/auth/github/:splat"
   status = 200
   force = true
 
 [[redirects]]
   from = "/health"
-  to = "${API_URL}/health"
+  to = "https://archaeo-pro.vercel.app/health"
   status = 200
   force = true
 
