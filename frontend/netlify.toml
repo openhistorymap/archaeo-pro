@@ -1,8 +1,8 @@
-# Netlify build + routing config.
+# Netlify build config.
 #
-# The PWA is served from archaeo.pro (canonical) and archeo.pro (typo-fix
-# redirect). All API traffic is proxied to the Vercel backend so the PWA
-# never has to deal with CORS in prod.
+# Routing lives in public/_redirects (Netlify reads it from the publish dir).
+# We tried [[redirects]] in this file and they did not fire — keep routing
+# in _redirects so it's evaluated by Netlify's standard edge logic.
 
 [build]
   base = "frontend/"
@@ -11,55 +11,3 @@
 
 [build.environment]
   NODE_VERSION = "20"
-
-# --- Reverse-proxy /api routes to the Vercel backend ---------------------
-#
-# We hardcode the URL here. ${API_URL} env-var substitution in [[redirects]]
-# was silently failing (every API path was falling through to the SPA
-# fallback), so we keep it explicit. If the API moves, edit this file —
-# don't try to drive it from Netlify env vars.
-
-[[redirects]]
-  from = "/wms/*"
-  to = "https://archaeo-pro.vercel.app/wms/:splat"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/documents/*"
-  to = "https://archaeo-pro.vercel.app/documents/:splat"
-  status = 200
-  force = true
-
-# Only the OAuth code-for-token relay hits the API. /auth/callback is a
-# SPA route handled by the Angular router; do NOT proxy it.
-[[redirects]]
-  from = "/auth/github/*"
-  to = "https://archaeo-pro.vercel.app/auth/github/:splat"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/health"
-  to = "https://archaeo-pro.vercel.app/health"
-  status = 200
-  force = true
-
-# --- archeo.pro typo-fix → archaeo.pro -----------------------------------
-[[redirects]]
-  from = "https://archeo.pro/*"
-  to = "https://archaeo.pro/:splat"
-  status = 301
-  force = true
-
-[[redirects]]
-  from = "https://www.archeo.pro/*"
-  to = "https://archaeo.pro/:splat"
-  status = 301
-  force = true
-
-# --- SPA fallback (must be last) -----------------------------------------
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200

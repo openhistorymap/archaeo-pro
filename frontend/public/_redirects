@@ -1,7 +1,21 @@
-# Netlify reads this from the publish dir as a belt-and-suspenders for the
-# rules in netlify.toml. The redirects with env-var substitution must stay
-# in netlify.toml; this file only carries the SPA fallback so even if
-# netlify.toml has a parse hiccup, /auth/callback and other SPA routes
-# still resolve to index.html instead of 404.
+# Netlify routing — single source of truth.
+#
+# We keep all redirects here (not in netlify.toml) because [[redirects]]
+# in netlify.toml were silently not firing on this site. _redirects is
+# evaluated per-request at the edge with simpler, more deterministic
+# semantics. If you change the API URL, edit it here.
+#
+# Format: <from>  <to>  <status>[!]   (! = force, override static files)
 
-/*    /index.html   200
+# --- Reverse-proxy API paths to Vercel -----------------------------------
+/wms/*                      https://archaeo-pro.vercel.app/wms/:splat                200!
+/documents/*                https://archaeo-pro.vercel.app/documents/:splat          200!
+/auth/github/*              https://archaeo-pro.vercel.app/auth/github/:splat        200!
+/health                     https://archaeo-pro.vercel.app/health                    200!
+
+# --- archeo.pro typo-fix → archaeo.pro -----------------------------------
+https://archeo.pro/*        https://archaeo.pro/:splat                               301!
+https://www.archeo.pro/*    https://archaeo.pro/:splat                               301!
+
+# --- SPA fallback (must be last) -----------------------------------------
+/*                          /index.html                                              200
