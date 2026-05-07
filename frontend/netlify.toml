@@ -42,9 +42,11 @@
   status = 200
   force = true
 
+# Only the OAuth code-for-token relay hits the API. /auth/callback is a
+# SPA route handled by the Angular router; do NOT proxy it.
 [[redirects]]
-  from = "/auth/*"
-  to = "${API_URL}/auth/:splat"
+  from = "/auth/github/*"
+  to = "${API_URL}/auth/github/:splat"
   status = 200
   force = true
 
