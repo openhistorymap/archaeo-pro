@@ -1,0 +1,66 @@
+<section class="map-page">
+  <header class="map-bar">
+    <a [routerLink]="['/surveillances', surveillance()?.id]" class="map-bar__back">← Dettaglio</a>
+    <h1 class="map-bar__title">{{ surveillance()?.title || 'Mappa' }}</h1>
+    @if (mode() === 'draw-area') {
+      <span class="map-bar__hint">Tocca per aggiungere vertici · doppio-tocco per chiudere</span>
+    }
+  </header>
+
+  <div class="map" #mapContainer></div>
+
+  @if (loading()) {
+    <div class="overlay overlay--center"><p>Caricamento…</p></div>
+  }
+
+  @if (error()) {
+    <div class="overlay overlay--bottom">
+      <p class="error">{{ error() }}</p>
+    </div>
+  }
+
+  <aside class="panel">
+    <section class="panel__block">
+      <h2>Strati WMS</h2>
+      @if (wmsSources().length === 0) {
+        <p class="muted">Nessuna fonte configurata.</p>
+      } @else {
+        <ul class="layers">
+          @for (s of wmsSources(); track s.id) {
+            <li>
+              <label>
+                <input type="checkbox" [checked]="isEnabled(s)" (change)="toggleSource(s)" />
+                <span>{{ s.label }}</span>
+              </label>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <section class="panel__block">
+      <h2>Area sorvegliata</h2>
+      @if (mode() === 'view') {
+        <button type="button" class="btn btn--ghost" (click)="startDrawing()">
+          @if (surveillance()?.area) { Ridisegna } @else { Disegna area }
+        </button>
+      } @else {
+        <p class="muted">{{ drawingPoints().length }} punti.</p>
+        <div class="row">
+          <button type="button" class="btn btn--primary"
+                  [disabled]="!hasUnsavedDrawing() || busy()"
+                  (click)="finalizeDrawing()">
+            @if (busy()) { Salvataggio… } @else { Salva area }
+          </button>
+          <button type="button" class="btn btn--ghost" (click)="cancelDrawing()">Annulla</button>
+        </div>
+      }
+    </section>
+
+    <section class="panel__block">
+      <h2>Evidenze</h2>
+      <p class="muted">{{ surveillance()?.findings?.length || 0 }} sul posto.</p>
+      <p class="muted small">Aggiunta-evidenza-da-mappa: in arrivo.</p>
+    </section>
+  </aside>
+</section>

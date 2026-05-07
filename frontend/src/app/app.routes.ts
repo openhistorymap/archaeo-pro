@@ -30,4 +30,10 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/surveillance-detail/surveillance-detail').then((m) => m.SurveillanceDetail),
   },
+  {
+    path: 'surveillances/:id/map',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/surveillance-map/surveillance-map').then((m) => m.SurveillanceMap),
+  },
 ];

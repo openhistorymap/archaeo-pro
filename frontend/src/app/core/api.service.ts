@@ -28,9 +28,17 @@ export class ApiService {
     return this.http.get<WmsSource[]>(`${this.base}/wms/sources`);
   }
 
-  /** URL used directly by MapLibre — never fetched via HttpClient. */
-  wmsTileUrl(sourceId: string): string {
-    return `${this.base}/wms/${sourceId}`;
+  /**
+   * Build a MapLibre raster tile URL for a WMS source. MapLibre interpolates
+   * `{bbox-epsg-3857}` per tile request — keep that placeholder literal.
+   */
+  wmsTileUrl(sourceId: string, layers: string[]): string {
+    const layersParam = encodeURIComponent(layers.join(','));
+    return (
+      `${this.base}/wms/${sourceId}?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap` +
+      `&LAYERS=${layersParam}&STYLES=&FORMAT=image/png&TRANSPARENT=true` +
+      `&SRS=EPSG:3857&WIDTH=256&HEIGHT=256&BBOX={bbox-epsg-3857}`
+    );
   }
 
   /**

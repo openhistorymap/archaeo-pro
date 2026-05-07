@@ -14,6 +14,7 @@
     <header class="page__head">
       <h1>{{ s.title }}</h1>
       <div class="actions">
+        <a [routerLink]="['/surveillances', s.id, 'map']" class="btn btn--ghost">Mappa</a>
         <button type="button" class="btn btn--ghost" [disabled]="busy()" (click)="generate('docx')">DOCX</button>
         <button type="button" class="btn btn--ghost" [disabled]="busy()" (click)="generate('pdf')">PDF</button>
         <button type="button" class="btn btn--primary" [disabled]="busy()" (click)="save()">Salva</button>
