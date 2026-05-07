@@ -4,30 +4,39 @@
 
 ```
    ┌──────────────────────────────────────────────────────────────────┐
-   │                Angular 21 PWA (field, offline-aware)             │
-   │                                                                  │
-   │  GitHub PKCE login   ───►  IndexedDB (token + offline scratch)   │
-   │  GPS + Camera                                                    │
-   │  MapLibre GL JS                                                  │
-   └──────┬─────────────────────┬─────────────────────────┬───────────┘
-          │ direct GitHub API    │ WMS tiles               │ POST docx/pdf
-          │ (user's token)       │                         │ (multipart)
-          ▼                      ▼                         ▼
- ┌──────────────────┐   ┌─────────────────────┐   ┌──────────────────┐
- │  GitHub          │   │  archaeo-pro API    │   │  archaeo-pro API │
- │                  │   │   /wms/{source}     │   │   /documents/*   │
- │  archaeo-pro-    │   │                     │   │                  │
- │   index (priv)   │   │  proxies to:        │   │  python-docx     │
- │  archaeo-pro-    │   │  - Vincoli in Rete  │   │  + LibreOffice   │
- │   {uuid} (priv)  │   │  - ISPRA / CARG     │   │  → DOCX / PDF    │
- │   + Release      │   │  - PCN              │   │                  │
- │   asset photos   │   │                     │   │  No state.       │
- └──────────────────┘   └─────────────────────┘   └──────────────────┘
+   │             Angular 21 PWA (field, offline-aware)                │
+   │  GitHub PKCE login  ─►  localStorage token  ─►  GitHub API       │
+   │  GPS · camera · MapLibre GL JS · client-side photo resize        │
+   └──┬───────────────────────┬──────────────────┬────────────────────┘
+      │ direct (user token)   │ relative URLs    │ relative URLs
+      ▼                       ▼                  ▼
+  ┌─────────────────┐   ┌──────────────────────────────────────────┐
+  │  GitHub         │   │  Netlify (PWA host + reverse proxy)      │
+  │                 │   │  archaeo.pro / archeo.pro 301 fix        │
+  │  archaeo-pro-   │   └──────────────┬───────────────────────────┘
+  │   index (priv)  │                  │ /wms /documents /auth proxy
+  │  archaeo-pro-   │                  ▼
+  │   {uuid} (priv) │   ┌──────────────────────────────────────────┐
+  │  + Release      │   │  Vercel  (FastAPI ASGI function)         │
+  │   asset photos  │   │   /wms/{source}  → Vincoli / ISPRA / PCN │
+  │                 │   │   /auth/github/exchange   (OAuth relay)  │
+  │                 │   │   /documents/docx  (python-docx)         │
+  └─────────────────┘   │   /documents/pdf   ──────────┐           │
+                        └──────────────────────────────┼───────────┘
+                                                       │ DOCX over HTTPS
+                                                       │ + basic auth
+                                                       ▼
+                                ┌──────────────────────────────────┐
+                                │  Self-hosted Gotenberg           │
+                                │  pdf.archaeo.pro (Caddy → :3000) │
+                                │  LibreOffice + Chromium          │
+                                └──────────────────────────────────┘
 ```
 
-Storage and auth are 100% client-side against GitHub. The backend is a thin
-stateless service: WMS proxy + document renderer. It never sees the user's
-GitHub token (the PWA does the OAuth dance via PKCE) and stores nothing.
+Storage and auth are 100% client-side against GitHub. The Vercel API is
+stateless: it sees a SurveillancePayload + photo bytes for rendering, and
+forgets. PDF rendering is delegated to a self-hosted Gotenberg container —
+LibreOffice can't live on Vercel, so it lives on a small VPS we run.
 
 ## Repo layout — per archaeologist
 

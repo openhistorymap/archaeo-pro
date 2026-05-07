@@ -1,0 +1,32 @@
+# Standalone Gotenberg deployment for archaeo-pro PDF rendering.
+#
+# Run on the public-facing host (the same VPS that serves the rest of
+# archaeo-pro is fine). The Vercel-hosted API calls this service over
+# HTTPS with basic auth — terminate TLS upstream (Caddy/Traefik/nginx) on
+# something like https://pdf.archaeo.pro and forward to gotenberg:3000.
+#
+# Usage:
+#   cp .env.example .env
+#   # Edit GOTENBERG_USER / GOTENBERG_PASSWORD
+#   docker compose up -d
+#
+# Then point Vercel's GOTENBERG_URL / GOTENBERG_USER / GOTENBERG_PASSWORD
+# at https://pdf.archaeo.pro and these credentials.
+
+services:
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    restart: unless-stopped
+    environment:
+      API_PORT: "3000"
+      API_BASIC_AUTH_USERNAME: ${GOTENBERG_USER:?set GOTENBERG_USER in .env}
+      API_BASIC_AUTH_PASSWORD: ${GOTENBERG_PASSWORD:?set GOTENBERG_PASSWORD in .env}
+      # Reasonable resource ceilings for a small VPS. Tune to taste.
+      API_TIMEOUT: "120s"
+    ports:
+      # Bind to localhost only — let your TLS-terminating reverse proxy
+      # (Caddy/nginx/Traefik) be the only public surface.
+      - "127.0.0.1:${GOTENBERG_PORT:-3000}:3000"
+    # Keep memory bounded — LibreOffice + Chromium can balloon.
+    mem_limit: 1g
+    cpus: 1.0

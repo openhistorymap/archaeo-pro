@@ -6,20 +6,34 @@ record on-site (offline, on a phone), pull authoritative context from
 photos, and emit a Sovrintendenza-ready **DOCX + PDF** — while structuring the
 data so it can also be exported to **OpenHistoryMap**.
 
-## Storage model
+## Deployment topology
 
-There is no central database. Each archaeologist signs in with GitHub; their
-data lives in **their own** GitHub repos:
+```
+                                ┌─────────────────────┐
+        archaeo.pro ─────────►  │  Netlify (PWA)      │
+        archeo.pro  301 →       └──────────┬──────────┘
+                                           │   reverse-proxy
+                                           │   /wms /documents /auth /health
+                                           ▼
+                                ┌─────────────────────┐
+                                │  Vercel (FastAPI)   │
+                                │  WMS proxy          │
+                                │  OAuth relay        │
+                                │  DOCX render        │
+                                │  PDF render ─┐      │
+                                └──────────────┼──────┘
+                                               │  HTTPS + basic auth
+                                               ▼
+                                ┌─────────────────────┐
+                                │  Self-hosted server │
+                                │  Gotenberg (DOCX→PDF)│
+                                │  pdf.archaeo.pro    │
+                                └─────────────────────┘
 
-- `archaeo-pro-index` — one private repo per user, holds the index of all
-  surveillances (one JSON file per surveillance entry, merge-friendly).
-- `archaeo-pro-{uuid}` — one private repo per surveillance, holds the full
-  structured data (`surveillance.json`, `findings/`, `units/`, `photos/`).
-  Photo binaries are uploaded as assets of a `data` Release on the same repo,
-  keeping the git history light.
-
-The backend keeps **no state**: it only proxies WMS upstreams (CORS) and
-renders DOCX/PDF from a posted snapshot.
+   Storage: each archaeologist's GitHub account — archaeo-pro-index +
+            archaeo-pro-{uuid} per surveillance, photos on Releases.
+            The backend never sees a token.
+```
 
 ## Stack
 
@@ -28,44 +42,88 @@ renders DOCX/PDF from a posted snapshot.
 | Frontend    | Angular 21 PWA · MapLibre GL JS · Dexie (offline scratch)       |
 | Auth        | GitHub OAuth · PKCE flow entirely in the PWA                    |
 | Storage     | GitHub Repos + Releases (per-user index + per-surveillance)     |
-| Backend     | FastAPI · python-docx · LibreOffice headless (stateless)        |
-| Maps        | Backend WMS proxy → Vincoli in Rete, ISPRA, PCN                 |
-| Export      | OHM-ready GeoJSON staged in the surveillance repo               |
+| API         | FastAPI on Vercel · python-docx for DOCX                        |
+| PDF         | Gotenberg container (self-hosted)                               |
+| Frontend    | Netlify static site + reverse-proxy to API                      |
 
-## Quick start
+## Local development
 
 ```bash
-cp .env.example .env   # set GITHUB_CLIENT_ID after registering an OAuth App
+cp .env.example .env
 docker compose up --build
 ```
 
+Brings up three containers on a shared docker network:
+
+- `gotenberg` — DOCX → PDF rendering (no auth in dev)
+- `api` — FastAPI (mirrors the Vercel deployment, includes a uvicorn dev server)
+- `frontend` — Angular dev server with proxy.conf forwarding `/wms`,
+  `/documents`, `/auth`, `/health` to `api:8000`
+
 Then:
 
+- PWA:        http://localhost:4200
 - API:        http://localhost:8000  (Swagger: /docs)
-- Frontend:   http://localhost:4200
 
-The first frontend run installs npm deps inside the container and runs
-`ng serve`.
+### GitHub OAuth (one-time)
 
-## GitHub OAuth setup (one-time)
+Create a **dev** OAuth App at https://github.com/settings/developers:
 
-1. https://github.com/settings/developers → New OAuth App
-2. Application name: `archaeo-pro (dev)`
-3. Homepage URL: `http://localhost:4200`
-4. Authorization callback URL: `http://localhost:4200/auth/callback`
-5. Copy the Client ID into `.env` as `GITHUB_CLIENT_ID`. (No client secret —
-   the PWA uses PKCE.)
+- Application name: `archaeo-pro (dev)`
+- Homepage URL: `http://localhost:4200`
+- Authorization callback URL: `http://localhost:4200/auth/callback`
+
+Copy the Client ID into `frontend/src/environments/environment.ts` as
+`githubClientId`.
+
+For production, create a second OAuth App with callback
+`https://archaeo.pro/auth/callback` and put its Client ID in Netlify's
+`GITHUB_CLIENT_ID_PROD` env var.
+
+## Production deployment
+
+### 1. Self-hosted Gotenberg
+
+```bash
+cd pdf-service
+cp .env.example .env  # set a real password
+docker compose up -d
+# Front with Caddy/nginx → https://pdf.archaeo.pro
+```
+
+See [`pdf-service/README.md`](pdf-service/README.md) for details.
+
+### 2. Vercel (API)
+
+- Create a Vercel project pointing at `backend/` as the root.
+- Set env vars:
+  - `CORS_ORIGINS` = `https://archaeo.pro,https://archeo.pro,https://www.archaeo.pro`
+  - `GOTENBERG_URL` = `https://pdf.archaeo.pro`
+  - `GOTENBERG_USER` / `GOTENBERG_PASSWORD` matching the Gotenberg deploy
+- Vercel auto-detects the Python runtime from `backend/requirements.txt` and
+  the `api/index.py` entrypoint via `backend/vercel.json`.
+
+### 3. Netlify (frontend)
+
+- Create a Netlify site pointing at this repo; Netlify reads
+  `frontend/netlify.toml` for build + redirects.
+- Set env vars:
+  - `GITHUB_CLIENT_ID_PROD` = production OAuth App Client ID
+  - `API_URL` = `https://<your-vercel-app>.vercel.app`
+- Add the custom domains `archaeo.pro` (primary) and `archeo.pro`
+  (Netlify will 301-redirect it via the netlify.toml rule).
 
 ## Project layout
 
 ```
-backend/        FastAPI app — stateless, /wms/* proxy + /documents/{docx,pdf}
-frontend/       Angular 21 PWA (storage layer talks directly to GitHub)
+backend/        FastAPI app — Vercel-ready (api/index.py + requirements.txt)
+frontend/       Angular 21 PWA — Netlify-ready (netlify.toml)
+pdf-service/    Gotenberg container — self-hosted PDF microservice
 docs/           Architecture notes
 ```
 
 ## Status
 
 v1 is field-first, single-archaeologist, GitHub-as-storage. OHM index publish
-and GCX public-repo export are deferred (the local `exports/ohm.geojson` is
-generated either way). See `docs/architecture.md`.
+and GCX public-repo export are deferred (`exports/ohm.geojson` is generated
+locally either way). See `docs/architecture.md`.
