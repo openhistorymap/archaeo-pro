@@ -11,13 +11,16 @@
 # The build command bakes GITHUB_CLIENT_ID_PROD into environment.prod.ts.
 
 [build]
+  # `base` is relative to the repo root; `command` and `publish` are then
+  # resolved relative to `base`. So once we set base = "frontend/", we use
+  # in-frontend paths for the rest.
   base = "frontend/"
   command = """
     sed -i "s|__GITHUB_CLIENT_ID_PROD__|$GITHUB_CLIENT_ID_PROD|g" src/environments/environment.prod.ts && \
     npm install --no-audit --no-fund && \
     npx ng build --configuration=production
   """
-  publish = "frontend/dist/archaeo-pro/browser"
+  publish = "dist/archaeo-pro/browser"
 
 [build.environment]
   NODE_VERSION = "20"
