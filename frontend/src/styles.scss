@@ -1,15 +1,310 @@
+/* ============================================================
+   archaeo·pro — design tokens
+
+   The whole product reads off these. Every component should reach
+   for a semantic token (--surface, --text, --accent…) and never a
+   raw color or px value. See .impeccable.md for the design context.
+   ============================================================ */
+
+:root {
+  color-scheme: light;
+
+  /* Type families */
+  --font-display: 'EB Garamond', 'Spectral', Georgia, serif;
+  --font-body: 'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace;
+
+  /* Type sizes — fixed rem scale (no fluid clamp on app UI) */
+  --text-xs:    0.75rem;   /* 12 */
+  --text-sm:    0.875rem;  /* 14 */
+  --text-base:  1rem;      /* 16 */
+  --text-md:    1.125rem;  /* 18 — preferred body for surveillance content */
+  --text-lg:    1.25rem;   /* 20 */
+  --text-xl:    1.5rem;    /* 24 */
+  --text-2xl:   1.875rem;  /* 30 */
+  --text-3xl:   2.5rem;    /* 40 */
+  --text-4xl:   3.5rem;    /* 56 */
+
+  --leading-tight:  1.15;
+  --leading-snug:   1.3;
+  --leading-normal: 1.55;
+  --leading-loose:  1.75;
+
+  /* Spacing — 4pt scale, semantic names */
+  --space-2xs: 0.25rem;
+  --space-xs:  0.5rem;
+  --space-sm:  0.75rem;
+  --space-md:  1rem;
+  --space-lg:  1.5rem;
+  --space-xl:  2rem;
+  --space-2xl: 3rem;
+  --space-3xl: 4rem;
+  --space-4xl: 6rem;
+
+  /* Conservative, tool-like radii */
+  --radius-sm:  3px;
+  --radius-md:  5px;
+  --radius-lg:  8px;
+  --radius-pill: 999px;
+
+  /* ---- Light theme (default) ---------------------------------
+     Parchment surfaces tinted ochre. Text is deep umber, never
+     pure black. The accent is iron-oxide / Pompeian red — the
+     only saturated colour in the palette.                       */
+
+  --surface:        oklch(0.975 0.012 80);  /* warm paper */
+  --surface-warm:   oklch(0.96  0.018 75);
+  --surface-elev:   oklch(0.99  0.008 80);  /* card, lifted */
+  --surface-sunk:   oklch(0.94  0.020 70);  /* input, well */
+
+  --text:           oklch(0.22  0.024 50);
+  --text-soft:      oklch(0.42  0.018 55);
+  --text-faint:     oklch(0.60  0.012 55);
+  --text-on-accent: oklch(0.985 0.012 80);
+
+  --rule:           oklch(0.88  0.014 70);
+  --rule-strong:    oklch(0.78  0.020 65);
+
+  --accent:         oklch(0.52  0.155 32);   /* Pompeian / iron oxide */
+  --accent-strong:  oklch(0.45  0.175 30);
+  --accent-soft:    oklch(0.93  0.040 32);   /* hover field */
+  --accent-quiet:   oklch(0.97  0.018 32);   /* almost imperceptible */
+  --accent-rule:    oklch(0.66  0.110 32);
+
+  --field-area:     oklch(0.50  0.090 145);  /* leaf-green for the watched area */
+  --field-finding:  oklch(0.62  0.130 60);   /* warm ochre for findings */
+
+  --shadow-sm: 0 1px 2px oklch(0.2 0.02 50 / 0.06);
+  --shadow-md: 0 2px 10px oklch(0.2 0.02 50 / 0.08);
+  --shadow-lg: 0 16px 40px oklch(0.2 0.02 50 / 0.12);
+
+  --focus-ring: 0 0 0 3px oklch(0.55 0.18 32 / 0.30);
+
+  --transition-quick: 120ms cubic-bezier(0.2, 0, 0, 1);
+  --transition-base:  220ms cubic-bezier(0.2, 0, 0, 1);
+  --transition-slow:  420ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --surface:        oklch(0.165 0.012 50);
+  --surface-warm:   oklch(0.205 0.014 55);
+  --surface-elev:   oklch(0.225 0.014 55);
+  --surface-sunk:   oklch(0.135 0.012 50);
+
+  --text:           oklch(0.93  0.018 75);
+  --text-soft:      oklch(0.72  0.014 60);
+  --text-faint:     oklch(0.55  0.012 55);
+  --text-on-accent: oklch(0.16  0.012 50);
+
+  --rule:           oklch(0.30  0.014 55);
+  --rule-strong:    oklch(0.42  0.018 55);
+
+  --accent:         oklch(0.70  0.150 32);
+  --accent-strong:  oklch(0.78  0.155 32);
+  --accent-soft:    oklch(0.30  0.070 32);
+  --accent-quiet:   oklch(0.22  0.040 32);
+  --accent-rule:    oklch(0.55  0.120 32);
+
+  --field-area:     oklch(0.62  0.110 145);
+  --field-finding:  oklch(0.72  0.140 60);
+
+  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.5);
+  --shadow-md: 0 4px 12px oklch(0 0 0 / 0.55);
+  --shadow-lg: 0 16px 40px oklch(0 0 0 / 0.6);
+
+  --focus-ring: 0 0 0 3px oklch(0.78 0.16 32 / 0.40);
+}
+
+/* ============================================================
+   Base
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
 html, body {
   margin: 0;
   padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    Helvetica, Arial, sans-serif;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-body);
   font-size: 16px;
-  color: #222;
-  background: #fafaf7;
+  line-height: var(--leading-normal);
+  /* Public Sans optical features + tabular-friendly defaults */
+  font-feature-settings: 'kern' on, 'liga' on, 'calt' on;
+  font-variant-numeric: oldstyle-nums proportional-nums;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
-a { color: inherit; }
+body {
+  /* The paper-grain — barely-there texture so light-mode surfaces don't feel synthetic.
+     Pure CSS, no asset, no perf cost. */
+  background-image:
+    radial-gradient(oklch(0.85 0.02 70 / 0.06) 1px, transparent 1px);
+  background-size: 6px 6px;
+  background-attachment: fixed;
+}
 
-button {
-  font-family: inherit;
+[data-theme="dark"] body {
+  background-image:
+    radial-gradient(oklch(0.4 0.02 55 / 0.10) 1px, transparent 1px);
+  background-size: 8px 8px;
+}
+
+a { color: inherit; text-decoration-color: var(--rule-strong); text-underline-offset: 0.2em; }
+a:hover { text-decoration-color: var(--accent); }
+
+button, input, textarea, select {
+  font: inherit;
+  color: inherit;
+  font-feature-settings: 'kern' on, 'tnum' on; /* tabular nums in form controls */
+}
+
+input, textarea, select {
+  background: var(--surface-sunk);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  padding: 0.6rem 0.8rem;
+  min-height: 44px;          /* Hard floor — gloved-hand target */
+  transition: border-color var(--transition-quick), box-shadow var(--transition-quick);
+}
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--accent-rule);
+  box-shadow: var(--focus-ring);
+}
+textarea {
+  resize: vertical;
+  line-height: var(--leading-normal);
+  min-height: 6rem;
+}
+
+/* ============================================================
+   Typography
+   ============================================================ */
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  letter-spacing: -0.005em;
+  margin: 0;
+  /* Old-style figures and proper Italian-publishing ligatures */
+  font-feature-settings: 'kern' on, 'liga' on, 'dlig' on, 'onum' on;
+}
+
+h1 { font-size: var(--text-3xl); }
+h2 { font-size: var(--text-2xl); }
+h3 { font-size: var(--text-xl); font-weight: 500; }
+h4 { font-size: var(--text-lg); font-weight: 600; }
+
+p { margin: 0; }
+
+code, pre, kbd, samp {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+/* Long-form prose containers reach for this */
+.prose {
+  font-size: var(--text-md);
+  line-height: var(--leading-loose);
+  max-width: 68ch;
+}
+.prose p + p { margin-top: var(--space-md); }
+
+/* ============================================================
+   Selection + focus
+   ============================================================ */
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+[data-theme="dark"] ::selection {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ============================================================
+   Buttons — single source of truth, used across components
+   ============================================================ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  min-height: 44px;
+  padding: 0.55rem 1.1rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  font-weight: 500;
+  font-size: var(--text-sm);
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--transition-quick), border-color var(--transition-quick),
+              color var(--transition-quick), box-shadow var(--transition-quick);
+}
+
+.btn:hover { background: var(--surface-warm); }
+
+.btn--primary {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border-color: var(--accent);
+}
+.btn--primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+
+.btn--ghost {
+  border-color: var(--rule);
+  color: var(--text);
+}
+.btn--ghost:hover { border-color: var(--rule-strong); background: var(--surface-warm); }
+
+.btn--quiet {
+  color: var(--text-soft);
+}
+.btn--quiet:hover { color: var(--text); background: var(--surface-warm); }
+
+.btn[disabled], .btn:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+/* ============================================================
+   Utility — one or two helpers, kept tight on purpose
+   ============================================================ */
+
+.hairline {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: var(--space-lg) 0;
+}
+
+.muted { color: var(--text-soft); }
+.faint { color: var(--text-faint); }
+
+.tabular { font-variant-numeric: tabular-nums lining-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

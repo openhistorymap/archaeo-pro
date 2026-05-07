@@ -9,16 +9,44 @@ import { GitHubAuthService } from '../../core/github/auth.service';
   template: `
     <section class="callback">
       @if (error()) {
-        <p class="callback__error">Errore di accesso: {{ error() }}</p>
-        <a routerLink="/login">Torna al login</a>
+        <h1>Accesso non riuscito</h1>
+        <p class="callback__msg">{{ error() }}</p>
+        <a routerLink="/login" class="btn btn--ghost">Torna al login</a>
       } @else {
-        <p>Completamento accesso a GitHub…</p>
+        <h1>Apertura sessione…</h1>
+        <p class="callback__msg muted">Sto scambiando il codice di autorizzazione con GitHub.</p>
+        <span class="callback__pulse" aria-hidden="true"></span>
       }
     </section>
   `,
   styles: [`
-    .callback { padding: 3rem 1rem; text-align: center; }
-    .callback__error { color: #b00020; font-weight: 600; }
+    .callback {
+      flex: 1 1 auto;
+      display: grid;
+      place-content: center;
+      gap: var(--space-md);
+      padding: var(--space-3xl) var(--space-lg);
+      text-align: center;
+    }
+    h1 {
+      font-family: var(--font-display);
+      font-style: italic;
+      font-weight: 500;
+      font-size: var(--text-2xl);
+    }
+    .callback__msg { max-width: 32rem; }
+    .callback__pulse {
+      display: block;
+      width: 28px;
+      height: 1px;
+      margin: var(--space-md) auto 0;
+      background: var(--accent);
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scaleX(0.3); opacity: 0.4; }
+      50% { transform: scaleX(1); opacity: 1; }
+    }
   `],
 })
 export class AuthCallback {
