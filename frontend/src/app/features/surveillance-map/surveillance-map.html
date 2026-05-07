@@ -12,6 +12,11 @@
         <span class="map-bar__dot" aria-hidden="true"></span>
         Tocca per i vertici · doppio-tocco per chiudere
       </p>
+    } @else if (mode() === 'add-finding') {
+      <p class="map-bar__hint">
+        <span class="map-bar__dot" aria-hidden="true"></span>
+        @if (!pendingFinding()) { Tocca il punto in cui si trova l’evidenza } @else { Compila la scheda qui a destra · tocca di nuovo per spostare il pin }
+      </p>
     }
   </header>
 
@@ -97,11 +102,82 @@
 
       <section class="panel__block">
         <h3 class="panel__heading">Evidenze</h3>
-        <p class="panel__count">
-          <span class="tabular">{{ surveillance()?.findings?.length || 0 }}</span>
-          <span class="muted">sul terreno</span>
-        </p>
-        <p class="panel__note muted">Aggiunta da mappa: in arrivo.</p>
+
+        @if (mode() !== 'add-finding') {
+          <p class="panel__count">
+            <span class="tabular">{{ surveillance()?.findings?.length || 0 }}</span>
+            <span class="muted">sul terreno</span>
+          </p>
+          <button type="button" class="btn btn--ghost btn--block"
+                  [disabled]="mode() === 'draw-area'"
+                  (click)="startAddingFinding()">
+            + Aggiungi evidenza
+          </button>
+          @if (mode() === 'draw-area') {
+            <p class="panel__note muted">Termina il disegno dell’area prima di aggiungere evidenze.</p>
+          }
+        } @else {
+          @if (!pendingFinding()) {
+            <p class="panel__note muted">Tocca la mappa per posizionare il pin dell’evidenza.</p>
+            <button type="button" class="btn btn--quiet btn--block" (click)="cancelAddingFinding()">
+              Annulla
+            </button>
+          } @else {
+            <form class="finding-form" [formGroup]="findingForm" (ngSubmit)="saveFinding()">
+              <label class="ff__field">
+                <span class="ff__label">Nome <span aria-hidden="true">*</span></span>
+                <input type="text" formControlName="name" autocomplete="off"
+                       placeholder="es. Frammento ceramico, muro, tomba…" />
+              </label>
+
+              <label class="ff__field">
+                <span class="ff__label">Tipologia</span>
+                <select formControlName="site_type">
+                  @for (t of siteTypes; track t.value) {
+                    <option [value]="t.value">{{ t.label }}</option>
+                  }
+                </select>
+              </label>
+
+              <label class="ff__field">
+                <span class="ff__label">Periodo</span>
+                <select formControlName="period">
+                  @for (p of periods; track p.value) {
+                    <option [value]="p.value">{{ p.label }}</option>
+                  }
+                </select>
+              </label>
+
+              <div class="ff__row">
+                <label class="ff__field">
+                  <span class="ff__label">Datazione (da)</span>
+                  <input type="text" formControlName="start_date" placeholder="es. -0050 / 1450" />
+                </label>
+                <label class="ff__field">
+                  <span class="ff__label">Datazione (a)</span>
+                  <input type="text" formControlName="end_date" placeholder="es. 0200 / 1500" />
+                </label>
+              </div>
+
+              <label class="ff__field">
+                <span class="ff__label">Descrizione</span>
+                <textarea formControlName="description" rows="2"
+                          placeholder="Materiali, contesto, osservazioni…"></textarea>
+              </label>
+
+              <div class="ff__actions">
+                <button type="button" class="btn btn--quiet btn--sm"
+                        [disabled]="busy()" (click)="cancelAddingFinding()">
+                  Annulla
+                </button>
+                <button type="submit" class="btn btn--primary btn--sm"
+                        [disabled]="findingForm.invalid || busy()">
+                  @if (busy()) { Salvataggio… } @else { Salva evidenza }
+                </button>
+              </div>
+            </form>
+          }
+        }
       </section>
     </div>
   </aside>

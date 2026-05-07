@@ -9,6 +9,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import maplibregl, {
   GeoJSONSource,
@@ -22,9 +23,39 @@ import { ApiService, WmsSource } from '../../core/api.service';
 import { RepoRef } from '../../core/github/client';
 import { IndexRepoService } from '../../core/storage/index-repo';
 import { SurveillanceStore } from '../../core/storage/surveillance-store';
-import { Surveillance } from '../../core/types/surveillance';
+import { Finding, Surveillance } from '../../core/types/surveillance';
 
-type Mode = 'view' | 'draw-area';
+type Mode = 'view' | 'draw-area' | 'add-finding';
+
+/** OSM-style tag presets — match what the OHM exporter emits. */
+const SITE_TYPES: { value: string; label: string }[] = [
+  { value: '', label: '— non specificato —' },
+  { value: 'settlement', label: 'Insediamento' },
+  { value: 'fortification', label: 'Fortificazione' },
+  { value: 'religious', label: 'Edificio religioso' },
+  { value: 'tomb', label: 'Sepoltura' },
+  { value: 'road', label: 'Strada o infrastruttura' },
+  { value: 'artefact', label: 'Frammento mobile' },
+  { value: 'unknown', label: 'Altro / non determinato' },
+];
+
+const PERIODS: { value: string; label: string }[] = [
+  { value: '', label: '— non specificato —' },
+  { value: 'prehistoric', label: 'Preistorico' },
+  { value: 'bronze_age', label: 'Età del bronzo' },
+  { value: 'iron_age', label: 'Età del ferro' },
+  { value: 'etruscan', label: 'Etrusco' },
+  { value: 'roman', label: 'Romano' },
+  { value: 'late_antique', label: 'Tardo-antico' },
+  { value: 'early_medieval', label: 'Alto-medievale' },
+  { value: 'medieval', label: 'Medievale' },
+  { value: 'modern', label: 'Moderno' },
+  { value: 'unknown', label: 'Non determinato' },
+];
+
+function uuidv4(): string {
+  return crypto.randomUUID();
+}
 
 const OSM_STYLE: StyleSpecification = {
   version: 8,
@@ -44,7 +75,7 @@ const ITALY_CENTER: LngLatLike = [12.5, 42.0];
 
 @Component({
   selector: 'app-surveillance-map',
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink],
   templateUrl: './surveillance-map.html',
   styleUrl: './surveillance-map.scss',
 })
@@ -67,9 +98,22 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
   readonly enabledSources = signal<Set<string>>(new Set());
   readonly mode = signal<Mode>('view');
   readonly drawingPoints = signal<[number, number][]>([]);
+  readonly pendingFinding = signal<[number, number] | null>(null);
   readonly panelCollapsed = signal(false);
 
   readonly hasUnsavedDrawing = computed(() => this.drawingPoints().length >= 3);
+
+  readonly siteTypes = SITE_TYPES;
+  readonly periods = PERIODS;
+
+  readonly findingForm = new FormGroup({
+    name: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    description: new FormControl<string | null>(null),
+    site_type: new FormControl<string>('', { nonNullable: true }),
+    period: new FormControl<string>('', { nonNullable: true }),
+    start_date: new FormControl<string | null>(null),
+    end_date: new FormControl<string | null>(null),
+  });
 
   private map?: MapLibreMap;
 
@@ -191,6 +235,33 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
       filter: ['==', '$type', 'Point'],
       paint: { 'circle-radius': 5, 'circle-color': accent, 'circle-stroke-color': '#fff', 'circle-stroke-width': 1 },
     });
+
+    // Pending-finding pin (visible only while filling the form).
+    this.map.addSource('pending-finding', {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    });
+    this.map.addLayer({
+      id: 'pending-finding-halo',
+      type: 'circle',
+      source: 'pending-finding',
+      paint: {
+        'circle-radius': 14,
+        'circle-color': accent,
+        'circle-opacity': 0.18,
+      },
+    });
+    this.map.addLayer({
+      id: 'pending-finding-dot',
+      type: 'circle',
+      source: 'pending-finding',
+      paint: {
+        'circle-radius': 7,
+        'circle-color': accent,
+        'circle-stroke-color': surfaceColor,
+        'circle-stroke-width': 2,
+      },
+    });
   }
 
   /**
@@ -246,6 +317,60 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
     this.refreshDrawing();
   }
 
+  // ---- adding a finding -----------------------------------------------
+
+  startAddingFinding(): void {
+    this.mode.set('add-finding');
+    this.pendingFinding.set(null);
+    this.findingForm.reset({ name: '', description: null, site_type: '', period: '', start_date: null, end_date: null });
+    this.refreshPendingFinding();
+  }
+
+  cancelAddingFinding(): void {
+    this.mode.set('view');
+    this.pendingFinding.set(null);
+    this.findingForm.reset({ name: '', description: null, site_type: '', period: '', start_date: null, end_date: null });
+    this.refreshPendingFinding();
+  }
+
+  async saveFinding(): Promise<void> {
+    const ref = this.ref();
+    const current = this.surveillance();
+    const pending = this.pendingFinding();
+    if (!ref || !current || !pending || this.busy()) return;
+    if (this.findingForm.invalid) {
+      this.findingForm.markAllAsTouched();
+      return;
+    }
+    this.busy.set(true);
+    this.error.set(null);
+    try {
+      const v = this.findingForm.getRawValue();
+      const tags: Record<string, string> = { historic: 'archaeological_site' };
+      if (v.site_type) tags['site_type'] = v.site_type;
+      if (v.period) tags['period'] = v.period;
+      const finding: Finding = {
+        id: uuidv4(),
+        name: v.name,
+        description: v.description ?? null,
+        interpretation: null,
+        start_date: v.start_date ?? null,
+        end_date: v.end_date ?? null,
+        tags,
+        geometry: { type: 'Point', coordinates: [pending[0], pending[1]] },
+        units: [],
+      };
+      await this.store.addFinding(ref, finding);
+      this.surveillance.set({ ...current, findings: [...current.findings, finding] });
+      this.refreshFindings();
+      this.cancelAddingFinding();
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : String(err));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
   async finalizeDrawing(): Promise<void> {
     const ref = this.ref();
     const current = this.surveillance();
@@ -276,10 +401,15 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
   }
 
   private onMapClick(e: MapMouseEvent): void {
-    if (this.mode() !== 'draw-area') return;
-    const next = [...this.drawingPoints(), [e.lngLat.lng, e.lngLat.lat] as [number, number]];
-    this.drawingPoints.set(next);
-    this.refreshDrawing();
+    const m = this.mode();
+    if (m === 'draw-area') {
+      const next = [...this.drawingPoints(), [e.lngLat.lng, e.lngLat.lat] as [number, number]];
+      this.drawingPoints.set(next);
+      this.refreshDrawing();
+    } else if (m === 'add-finding') {
+      this.pendingFinding.set([e.lngLat.lng, e.lngLat.lat]);
+      this.refreshPendingFinding();
+    }
   }
 
   private onMapDoubleClick(e: MapMouseEvent): void {
@@ -353,5 +483,26 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
   private refreshDrawing(): void {
     const src = this.map?.getSource('drawing') as GeoJSONSource | undefined;
     src?.setData(this.drawingFeature());
+  }
+
+  private refreshPendingFinding(): void {
+    const src = this.map?.getSource('pending-finding') as GeoJSONSource | undefined;
+    if (!src) return;
+    const p = this.pendingFinding();
+    src.setData(
+      p
+        ? {
+            type: 'FeatureCollection',
+            features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: p }, properties: {} }],
+          }
+        : { type: 'FeatureCollection', features: [] },
+    );
+  }
+
+  private refreshFindings(): void {
+    const src = this.map?.getSource('findings') as GeoJSONSource | undefined;
+    const s = this.surveillance();
+    if (!src || !s) return;
+    src.setData(this.findingsCollection(s));
   }
 }
