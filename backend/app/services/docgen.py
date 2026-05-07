@@ -9,12 +9,14 @@ The structure follows the canonical sezioni di una sorveglianza archeologica:
   3. Inquadramento storico-archeologico
   4. Inquadramento geologico e geomorfologico
   5. Metodologia
-  6. Risultati della sorveglianza
-  7. Documentazione fotografica
-  8. Conclusioni
+  6. Giornale di scavo / assistenza
+  7. Risultati della sorveglianza
+  8. Documentazione fotografica
+  9. Conclusioni
 """
 from __future__ import annotations
 
+from datetime import date as _date
 from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
@@ -24,7 +26,51 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Cm, Pt, RGBColor
 
 from app.config import settings
-from app.payloads import SurveillancePayload
+from app.payloads import DayLogPayload, PresencePayload, SurveillancePayload
+
+
+_ITALIAN_MONTHS = [
+    "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+    "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre",
+]
+_ITALIAN_WEEKDAYS = [
+    "lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica",
+]
+_ROLE_LABELS = {
+    "direttore_tecnico": "Direttore tecnico",
+    "archeologo": "Archeologo",
+    "collaboratore": "Collaboratore",
+    "operatore": "Operatore",
+    "rilevatore": "Rilevatore",
+    "altro": "Altro",
+}
+
+
+def _parse_iso_date(s: str) -> _date | None:
+    try:
+        return _date.fromisoformat(s)
+    except (TypeError, ValueError):
+        return None
+
+
+def _format_italian_date(iso: str) -> str:
+    d = _parse_iso_date(iso)
+    if d is None:
+        return iso
+    return f"{d.day} {_ITALIAN_MONTHS[d.month - 1]} {d.year}"
+
+
+def _italian_weekday(iso: str) -> str:
+    d = _parse_iso_date(iso)
+    if d is None:
+        return ""
+    return _ITALIAN_WEEKDAYS[d.weekday()]
+
+
+def _role_label(role: str | None) -> str:
+    if not role:
+        return "—"
+    return _ROLE_LABELS.get(role, role.replace("_", " ").capitalize())
 
 
 def _heading(doc, text: str, level: int = 1) -> None:
@@ -133,11 +179,13 @@ def render_docx(s: SurveillancePayload, photos: dict[str, bytes]) -> Path:
     _heading(doc, "5. Metodologia")
     _para(doc, s.metodologia)
 
-    _heading(doc, "6. Risultati della sorveglianza")
+    _render_giornale(doc, s)
+
+    _heading(doc, "7. Risultati della sorveglianza")
     _para(doc, s.risultati)
 
     if s.findings:
-        _heading(doc, "6.1 Evidenze archeologiche", level=2)
+        _heading(doc, "7.1 Evidenze archeologiche", level=2)
         for i, f in enumerate(s.findings, 1):
             _heading(doc, f"Evidenza {i}: {f.name}", level=3)
             _para(doc, f.description)
@@ -145,6 +193,8 @@ def render_docx(s: SurveillancePayload, photos: dict[str, bytes]) -> Path:
                 _para(doc, f"Interpretazione: {f.interpretation}")
             if f.start_date or f.end_date:
                 _para(doc, f"Datazione: {f.start_date or '—'} / {f.end_date or '—'}")
+            if f.recorded_on:
+                _para(doc, f"Data di rilievo: {_format_italian_date(f.recorded_on)}", italic=True)
             if f.units:
                 _heading(doc, "Unità Stratigrafiche", level=4)
                 for u in f.units:
@@ -154,7 +204,7 @@ def render_docx(s: SurveillancePayload, photos: dict[str, bytes]) -> Path:
                         f"{u.definition or '—'} — {u.description or ''}",
                     )
 
-    _heading(doc, "7. Documentazione fotografica")
+    _heading(doc, "8. Documentazione fotografica")
     if s.photos:
         for p in s.photos:
             blob = photos.get(p.id)
@@ -171,7 +221,7 @@ def render_docx(s: SurveillancePayload, photos: dict[str, bytes]) -> Path:
     else:
         _para(doc, "[Nessuna documentazione fotografica acquisita.]", italic=True)
 
-    _heading(doc, "8. Conclusioni")
+    _heading(doc, "9. Conclusioni")
     _para(doc, s.conclusioni)
 
     out_dir = settings.work_dir / f"render-{uuid4().hex}"
@@ -179,3 +229,92 @@ def render_docx(s: SurveillancePayload, photos: dict[str, bytes]) -> Path:
     out_path = out_dir / "sorveglianza.docx"
     doc.save(out_path)
     return out_path
+
+
+def _render_giornale(doc, s: SurveillancePayload) -> None:
+    """Render section 6 — Giornale di scavo / assistenza.
+
+    Per the Sovrintendenza requirements: chronological list of site days,
+    each with hourly presences, personnel, operations, and localization.
+    """
+    _heading(doc, "6. Giornale di scavo")
+    if not s.days:
+        _para(
+            doc,
+            "[Nessuna giornata di assistenza ancora registrata. Le giornate vengono "
+            "compilate dal campo tramite l'interfaccia archaeo-pro e includono presenze, "
+            "operazioni svolte e localizzazione.]",
+            italic=True,
+        )
+        return
+
+    sorted_days = sorted(s.days, key=lambda d: d.date)
+    for day in sorted_days:
+        _render_day(doc, day)
+
+
+def _render_day(doc, day: DayLogPayload) -> None:
+    date_label = _format_italian_date(day.date)
+    weekday = _italian_weekday(day.date)
+    title = f"{date_label} — {weekday}" if weekday else date_label
+    _heading(doc, title, level=3)
+
+    if day.localizzazione:
+        _para(doc, f"Localizzazione del lavoro: {day.localizzazione}", italic=True)
+    if day.weather:
+        _para(doc, f"Condizioni meteo: {day.weather}", italic=True)
+
+    if day.presenze:
+        _render_presenze_table(doc, day.presenze)
+    else:
+        _para(doc, "[Nessuna presenza registrata per la giornata.]", italic=True)
+
+    if day.operazioni:
+        _heading(doc, "Operazioni svolte", level=4)
+        _para(doc, day.operazioni)
+
+    if day.notes:
+        _heading(doc, "Note", level=4)
+        _para(doc, day.notes, italic=True)
+
+
+def _render_presenze_table(doc, presenze: list[PresencePayload]) -> None:
+    table = doc.add_table(rows=len(presenze) + 1, cols=5)
+    table.style = "Table Grid"
+    table.autofit = False
+
+    headers = ("Nome", "Ruolo", "Inizio", "Fine", "Ore")
+    widths = (Cm(5.5), Cm(4.0), Cm(2.0), Cm(2.0), Cm(1.5))
+    hdr = table.rows[0].cells
+    for i, label in enumerate(headers):
+        hdr[i].text = label
+        hdr[i].width = widths[i]
+        for run in hdr[i].paragraphs[0].runs:
+            run.bold = True
+            run.font.size = Pt(10)
+
+    total_hours = 0.0
+    for i, p in enumerate(presenze, 1):
+        row = table.rows[i].cells
+        row[0].text = p.name or "—"
+        row[1].text = _role_label(p.role)
+        row[2].text = p.hours_start or "—"
+        row[3].text = p.hours_end or "—"
+        if p.hours_total is not None:
+            row[4].text = f"{p.hours_total:g}"
+            total_hours += p.hours_total
+        else:
+            row[4].text = "—"
+        for cell, w in zip(row, widths):
+            cell.width = w
+            for para in cell.paragraphs:
+                for run in para.runs:
+                    run.font.size = Pt(10)
+
+    if total_hours:
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        run = p.add_run(f"Totale ore della giornata: {total_hours:g}")
+        run.italic = True
+        run.font.size = Pt(10)
+        p.paragraph_format.space_after = Pt(8)

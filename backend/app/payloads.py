@@ -25,6 +25,7 @@ class FindingPayload(BaseModel):
     end_date: str | None = None
     tags: dict[str, str] = Field(default_factory=dict)
     units: list[StratigraphicUnitPayload] = Field(default_factory=list)
+    recorded_on: str | None = None
 
 
 class PhotoPayload(BaseModel):
@@ -36,6 +37,29 @@ class PhotoPayload(BaseModel):
     caption: str | None = None
     bearing: float | None = None
     taken_at: str | None = None
+    recorded_on: str | None = None
+    shot_type: str | None = None  # "intervento" | "dettaglio"
+    finding_id: str | None = None
+
+
+class PresencePayload(BaseModel):
+    name: str
+    role: str | None = None
+    hours_start: str | None = None
+    hours_end: str | None = None
+    hours_total: float | None = None
+
+
+class DayLogPayload(BaseModel):
+    """One entry of the giornale di scavo / assistenza. Mirrors the file
+    daily/<YYYY-MM-DD>.json in the surveillance repo."""
+
+    date: str  # ISO YYYY-MM-DD
+    presenze: list[PresencePayload] = Field(default_factory=list)
+    operazioni: str | None = None
+    localizzazione: str | None = None
+    weather: str | None = None
+    notes: str | None = None
 
 
 class SurveillancePayload(BaseModel):
@@ -63,3 +87,4 @@ class SurveillancePayload(BaseModel):
     conclusioni: str | None = None
     findings: list[FindingPayload] = Field(default_factory=list)
     photos: list[PhotoPayload] = Field(default_factory=list)
+    days: list[DayLogPayload] = Field(default_factory=list)

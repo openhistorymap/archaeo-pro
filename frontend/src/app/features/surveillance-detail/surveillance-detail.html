@@ -27,9 +27,15 @@
           Giornale di scavo
           <span class="block__count">({{ s.days.length }})</span>
         </h2>
-        <a [routerLink]="['/surveillances', s.id, 'days', todayISO()]" class="btn btn--ghost btn--sm">
-          + Oggi · {{ formatDay(todayISO()) }}
-        </a>
+        <div class="day-open">
+          <label class="day-open__label" for="day-open-input">Apri giornata</label>
+          <input id="day-open-input" type="date" class="day-open__input"
+                 #dayOpen [value]="todayISO()" />
+          <button type="button" class="btn btn--primary btn--sm"
+                  (click)="openDay(dayOpen.value)" [disabled]="!dayOpen.value">
+            Apri
+          </button>
+        </div>
       </header>
       @if (s.days.length === 0) {
         <p class="block__empty muted">

@@ -194,6 +194,13 @@ export class SurveillanceDetail {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
+  openDay(date: string): void {
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+    const id = this.surveillance()?.id;
+    if (!id) return;
+    void this.router.navigate(['/surveillances', id, 'days', date]);
+  }
+
   formatDay(iso: string): string {
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
     return m ? `${m[3]}.${m[2]}.${m[1]}` : iso;

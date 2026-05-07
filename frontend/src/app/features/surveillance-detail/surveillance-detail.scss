@@ -327,3 +327,24 @@ textarea {
   margin-left: auto;
   font-family: var(--font-display);
 }
+
+.day-open {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+.day-open__label {
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--text-soft);
+}
+.day-open__input {
+  font-size: var(--text-sm);
+  padding: 0.4rem 0.55rem;
+  min-height: 36px;
+  font-variant-numeric: tabular-nums;
+  width: 11rem;
+}
