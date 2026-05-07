@@ -1,9 +1,7 @@
-"""Generates the Sovrintendenza DOCX for a Surveillance.
+"""Renders the Sovrintendenza DOCX from a SurveillancePayload + photo bytes.
 
-We build the document programmatically (python-docx) rather than from a fixed
-.docx template so that the v1 default is reproducible and version-controllable.
-When the user supplies a real Sovrintendenza template, swap this module for a
-docxtpl-based renderer pointing at templates/sorveglianza.docx.
+Stateless: no DB, no filesystem-of-record. Receives the snapshot, writes the
+rendered DOCX into a per-call working directory, returns the path.
 
 The structure follows the canonical sezioni di una sorveglianza archeologica:
   1. Premessa
@@ -17,16 +15,16 @@ The structure follows the canonical sezioni di una sorveglianza archeologica:
 """
 from __future__ import annotations
 
+from io import BytesIO
 from pathlib import Path
-from uuid import UUID
+from uuid import uuid4
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Cm, Pt, RGBColor
-from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import Surveillance
+from app.payloads import SurveillancePayload
 
 
 def _heading(doc, text: str, level: int = 1) -> None:
@@ -58,14 +56,10 @@ def _kv_table(doc, rows: list[tuple[str, str | None]]) -> None:
         c1.width = Cm(11.0)
 
 
-def render_docx(db: Session, surveillance_id: UUID) -> Path:
-    s = db.get(Surveillance, surveillance_id)
-    if s is None:
-        raise ValueError(f"Surveillance {surveillance_id} not found")
-
+def render_docx(s: SurveillancePayload, photos: dict[str, bytes]) -> Path:
+    """Render a Sovrintendenza DOCX. `photos` is keyed by the photo id."""
     doc = Document()
 
-    # Title block
     title = doc.add_heading("RELAZIONE DI SORVEGLIANZA ARCHEOLOGICA", level=0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
@@ -87,10 +81,7 @@ def render_docx(db: Session, surveillance_id: UUID) -> Path:
             ("Provincia", s.provincia),
             ("Foglio catastale", s.foglio_catastale),
             ("Particelle", s.particelle),
-            (
-                "Periodo di indagine",
-                f"{s.start_date or '—'} – {s.end_date or '—'}",
-            ),
+            ("Periodo di indagine", f"{s.start_date or '—'} – {s.end_date or '—'}"),
         ],
     )
 
@@ -166,22 +157,24 @@ def render_docx(db: Session, surveillance_id: UUID) -> Path:
     _heading(doc, "7. Documentazione fotografica")
     if s.photos:
         for p in s.photos:
-            abs_path = settings.uploads_dir / p.storage_path
-            if abs_path.is_file():
-                try:
-                    doc.add_picture(str(abs_path), width=Cm(14))
-                    cap = doc.add_paragraph(p.caption or p.filename)
-                    cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    cap.runs[0].italic = True
-                except Exception:
-                    _para(doc, f"[immagine non leggibile: {p.filename}]", italic=True)
+            blob = photos.get(p.id)
+            if blob is None:
+                _para(doc, f"[immagine non trasmessa: {p.filename}]", italic=True)
+                continue
+            try:
+                doc.add_picture(BytesIO(blob), width=Cm(14))
+                cap = doc.add_paragraph(p.caption or p.filename)
+                cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                cap.runs[0].italic = True
+            except Exception:
+                _para(doc, f"[immagine non leggibile: {p.filename}]", italic=True)
     else:
         _para(doc, "[Nessuna documentazione fotografica acquisita.]", italic=True)
 
     _heading(doc, "8. Conclusioni")
     _para(doc, s.conclusioni)
 
-    out_dir = settings.exports_dir / str(s.id)
+    out_dir = settings.work_dir / f"render-{uuid4().hex}"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "sorveglianza.docx"
     doc.save(out_path)

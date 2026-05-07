@@ -3,61 +3,100 @@
 ## Data flow
 
 ```
-              ┌─────────────────────────────────────────────────────────┐
-              │                Angular 21 PWA (field)                   │
-              │  GPS + Camera + offline IndexedDB (Dexie)               │
-              │  MapLibre GL JS overlays via /wms/{source}              │
-              └────────────────────┬────────────────────────────────────┘
-                                   │ REST + multipart
-                                   ▼
-              ┌─────────────────────────────────────────────────────────┐
-              │                FastAPI backend                          │
-              │  /surveillances  CRUD                                   │
-              │  /photos         upload + EXIF parse                    │
-              │  /wms/{source}   proxy to upstream WMS                  │
-              │  /documents/{id} render DOCX → LibreOffice → PDF        │
-              │  /ohm/{id}       OHM-ready GeoJSON export               │
-              └────────┬────────────────────┬───────────────────────────┘
-                       │                    │
-                       ▼                    ▼
-                ┌──────────┐       ┌────────────────────────┐
-                │ Postgres │       │  Upstream WMS:         │
-                │ + PostGIS│       │  - Vincoli in Rete     │
-                │          │       │  - ISPRA / CARG        │
-                └──────────┘       │  - Geoportale Nazionale│
-                                   └────────────────────────┘
+   ┌──────────────────────────────────────────────────────────────────┐
+   │                Angular 21 PWA (field, offline-aware)             │
+   │                                                                  │
+   │  GitHub PKCE login   ───►  IndexedDB (token + offline scratch)   │
+   │  GPS + Camera                                                    │
+   │  MapLibre GL JS                                                  │
+   └──────┬─────────────────────┬─────────────────────────┬───────────┘
+          │ direct GitHub API    │ WMS tiles               │ POST docx/pdf
+          │ (user's token)       │                         │ (multipart)
+          ▼                      ▼                         ▼
+ ┌──────────────────┐   ┌─────────────────────┐   ┌──────────────────┐
+ │  GitHub          │   │  archaeo-pro API    │   │  archaeo-pro API │
+ │                  │   │   /wms/{source}     │   │   /documents/*   │
+ │  archaeo-pro-    │   │                     │   │                  │
+ │   index (priv)   │   │  proxies to:        │   │  python-docx     │
+ │  archaeo-pro-    │   │  - Vincoli in Rete  │   │  + LibreOffice   │
+ │   {uuid} (priv)  │   │  - ISPRA / CARG     │   │  → DOCX / PDF    │
+ │   + Release      │   │  - PCN              │   │                  │
+ │   asset photos   │   │                     │   │  No state.       │
+ └──────────────────┘   └─────────────────────┘   └──────────────────┘
 ```
 
-## Domain model (v1)
+Storage and auth are 100% client-side against GitHub. The backend is a thin
+stateless service: WMS proxy + document renderer. It never sees the user's
+GitHub token (the PWA does the OAuth dance via PKCE) and stores nothing.
 
-A **Surveillance** (`sorveglianza`) is the root aggregate. It owns:
+## Repo layout — per archaeologist
 
-- a project geometry (polygon — the watched area)
-- one or more **Findings** (`evidenze archeologiche`) — each a point/polygon with
-  date range, materials, interpretation
-- one or more **Stratigraphic Units** (`UU.SS.`) attached to findings
-- an ordered list of **Photos** with EXIF + GPS + orientation
-- a header (committente, direttore tecnico SABAP, normativa, comune, foglio
-  catastale)
+`archaeo-pro-index` (private, one per user, auto-created on first login):
 
-The Findings + their tags are what we serialize to OpenHistoryMap. The whole
-aggregate plus the photos and WMS-rendered map clips are what we serialize to
-the Sovrintendenza DOCX.
+```
+surveillances/
+  <id>.json             # one per surveillance: title, comune, bbox, repo_url, status, ohm_published
+profile.json            # name, sabap office contact, signature image asset URL, etc.
+README.md
+.archaeo-pro/version
+```
 
-## Why a WMS proxy
+One file per entry so two devices editing different surveillances never
+collide on the index.
 
-The three official Italian sources block CORS and (for PCN) require referrer
-headers. A thin server-side proxy fixes that, lets us cache GetCapabilities,
-and lets the PWA pre-cache tiles for offline field use against a stable URL.
+## Repo layout — per surveillance
+
+`archaeo-pro-{uuid}` (private by default, one per surveillance):
+
+```
+surveillance.json           # root: protocollo, committente, dates, free-form sections
+area.geojson                # the watched polygon in EPSG:4326
+findings/
+  <finding-id>.geojson      # GeoJSON Feature with properties.tags (OSM-style) and dates
+units/
+  <finding-id>/
+    us-001.json
+    us-002.json
+photos/
+  <photo-id>.json           # caption + EXIF + GPS + asset_url (points to the Release asset)
+exports/
+  sorveglianza.docx         # last rendered Sovrintendenza document
+  sorveglianza.pdf
+  ohm.geojson               # OHM-staged form (publish to OHM index is a separate, manual step)
+README.md                   # human-readable overview, browseable on github.com
+.archaeo-pro/version
+```
+
+Photo binaries are uploaded as **Release assets** on a release tagged `data`
+of this same repo. The repo's git history stays small; the assets are fetched
+by URL with the user's token when needed.
+
+## Why one-file-per-entity
+
+The PWA is field-first and may be edited offline on multiple devices.
+Single-blob JSON would conflict on every push; one-file-per-finding /
+per-photo / per-unit collapses conflicts to "you both edited the same
+finding", which is rare and trivially resolvable.
+
+## Why no central DB
+
+Archaeologists own their own data; the Sovrintendenza submission already lives
+on disk; git history gives free audit trail; the application is essentially a
+structured editor over a directory of JSON. A backend DB would be redundant
+state and a hosting burden.
+
+The cost is that cross-survey queries (search, map of all surveys) require
+reading the index repo. That's fine for a single archaeologist's worth of
+data; if a multi-user / studio model lands later, an index service can be
+added without disturbing the per-survey repos.
 
 ## OHM export
 
-OpenHistoryMap consumes OSM-style tagging with temporal extents (`start_date`,
-`end_date`). The exporter emits a GeoJSON FeatureCollection with:
+`exports/ohm.geojson` is a FeatureCollection of the surveillance's findings
+with OSM-style tags + temporal extents. Two follow-up actions (deferred):
 
-- `properties.start_date` / `properties.end_date` (ISO 8601 partial OK)
-- `properties.tags` — OSM-style key/value pairs (e.g. `historic=archaeological_site`,
-  `site_type=settlement`, `period=roman`)
-- `properties.source` set to the surveillance ID + protocollo
+- **Export to OHM** — registers the surveillance in OHM's data index.
+- **Publish GeoContext** — pushes the GCX form to a public repository.
 
-Format may evolve to OSM XML; gated behind a config flag.
+Both are manual, opt-in, and operate on the already-generated
+`exports/ohm.geojson`.

@@ -20,10 +20,9 @@ RUN uv pip install --system -e .
 COPY . .
 
 ENV PYTHONUNBUFFERED=1 \
-    UPLOADS_DIR=/data/uploads \
-    EXPORTS_DIR=/data/exports
+    WORK_DIR=/tmp/archaeo-pro
 
-RUN mkdir -p /data/uploads /data/exports
+RUN mkdir -p /tmp/archaeo-pro
 
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

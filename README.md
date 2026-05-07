@@ -6,21 +6,36 @@ record on-site (offline, on a phone), pull authoritative context from
 photos, and emit a Sovrintendenza-ready **DOCX + PDF** — while structuring the
 data so it can also be exported to **OpenHistoryMap**.
 
+## Storage model
+
+There is no central database. Each archaeologist signs in with GitHub; their
+data lives in **their own** GitHub repos:
+
+- `archaeo-pro-index` — one private repo per user, holds the index of all
+  surveillances (one JSON file per surveillance entry, merge-friendly).
+- `archaeo-pro-{uuid}` — one private repo per surveillance, holds the full
+  structured data (`surveillance.json`, `findings/`, `units/`, `photos/`).
+  Photo binaries are uploaded as assets of a `data` Release on the same repo,
+  keeping the git history light.
+
+The backend keeps **no state**: it only proxies WMS upstreams (CORS) and
+renders DOCX/PDF from a posted snapshot.
+
 ## Stack
 
-| Layer       | Tech                                                    |
-| ----------- | ------------------------------------------------------- |
-| Frontend    | Angular 21 PWA, MapLibre GL JS, Dexie (IndexedDB)       |
-| Backend     | FastAPI + SQLAlchemy 2 + GeoAlchemy2                    |
-| Database    | PostgreSQL 16 + PostGIS 3.4                             |
-| DocGen      | python-docx + LibreOffice headless (DOCX → PDF)         |
-| Maps        | WMS proxy → Vincoli in Rete, ISPRA, PCN                 |
-| Export      | OHM-ready GeoJSON                                       |
+| Layer       | Tech                                                            |
+| ----------- | --------------------------------------------------------------- |
+| Frontend    | Angular 21 PWA · MapLibre GL JS · Dexie (offline scratch)       |
+| Auth        | GitHub OAuth · PKCE flow entirely in the PWA                    |
+| Storage     | GitHub Repos + Releases (per-user index + per-surveillance)     |
+| Backend     | FastAPI · python-docx · LibreOffice headless (stateless)        |
+| Maps        | Backend WMS proxy → Vincoli in Rete, ISPRA, PCN                 |
+| Export      | OHM-ready GeoJSON staged in the surveillance repo               |
 
-## Quick start (Docker)
+## Quick start
 
 ```bash
-cp .env.example .env
+cp .env.example .env   # set GITHUB_CLIENT_ID after registering an OAuth App
 docker compose up --build
 ```
 
@@ -29,37 +44,28 @@ Then:
 - API:        http://localhost:8000  (Swagger: /docs)
 - Frontend:   http://localhost:4200
 
-The first frontend run installs npm deps inside the container and
-runs `ng serve`. See [`frontend/INIT.md`](frontend/INIT.md) for the
-one-time `ng new` bootstrap.
+The first frontend run installs npm deps inside the container and runs
+`ng serve`.
+
+## GitHub OAuth setup (one-time)
+
+1. https://github.com/settings/developers → New OAuth App
+2. Application name: `archaeo-pro (dev)`
+3. Homepage URL: `http://localhost:4200`
+4. Authorization callback URL: `http://localhost:4200/auth/callback`
+5. Copy the Client ID into `.env` as `GITHUB_CLIENT_ID`. (No client secret —
+   the PWA uses PKCE.)
 
 ## Project layout
 
 ```
-backend/        FastAPI app (functional skeleton — surveillance CRUD,
-                WMS proxy, docgen, OHM export)
-frontend/      Angular 21 PWA (bootstrap instructions in INIT.md)
+backend/        FastAPI app — stateless, /wms/* proxy + /documents/{docx,pdf}
+frontend/       Angular 21 PWA (storage layer talks directly to GitHub)
 docs/           Architecture notes
-```
-
-## Development on the host (without Docker)
-
-Backend:
-```bash
-cd backend
-uv sync
-uv run alembic upgrade head
-uv run uvicorn app.main:app --reload
-```
-
-Frontend (needs Node 20+):
-```bash
-cd frontend
-npm install
-npx ng serve
 ```
 
 ## Status
 
-v1 is field-first, single-archaeologist. Multi-user, regional WMS sources, and
-PEC/firma digitale submission are deferred. See `docs/architecture.md`.
+v1 is field-first, single-archaeologist, GitHub-as-storage. OHM index publish
+and GCX public-repo export are deferred (the local `exports/ohm.geojson` is
+generated either way). See `docs/architecture.md`.
