@@ -1,6 +1,6 @@
 .page {
   width: 100%;
-  max-width: 56rem;
+  max-width: 60rem;
   margin: 0 auto;
   padding: clamp(var(--space-lg), 4vw, var(--space-2xl)) var(--space-lg) calc(var(--space-4xl) + var(--space-md));
 }
@@ -14,20 +14,11 @@
 .page__state--error { color: var(--accent-strong); }
 
 .page__crumbs {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-md);
   margin-bottom: var(--space-md);
   font-size: var(--text-sm);
 }
 .page__back { color: var(--text-soft); text-decoration: none; }
 .page__back:hover { color: var(--accent); }
-.page__repo {
-  color: var(--text-faint);
-  text-decoration: none;
-}
-.page__repo:hover { color: var(--text); }
 
 .page__head {
   margin-bottom: var(--space-2xl);
@@ -44,25 +35,32 @@
 }
 .page__title {
   font-family: var(--font-display);
-  font-weight: 600;
+  font-style: italic;
+  font-weight: 500;
   font-size: clamp(2rem, 4vw, 3rem);
   letter-spacing: -0.01em;
   line-height: var(--leading-tight);
   margin: 0;
   font-feature-settings: 'kern' on, 'liga' on, 'dlig' on, 'onum' on;
 }
+.page__title-day {
+  font-variant-numeric: oldstyle-nums tabular-nums;
+}
+.page__title-wd {
+  color: var(--text-soft);
+  font-weight: 400;
+}
 .page__sub {
   font-size: var(--text-sm);
   margin: var(--space-xs) 0 0;
 }
 
-/* --- Form sections -------------------------------------------------- */
+/* --- Form sections (mirrors surveillance-detail) ------------------- */
 
 .form {
   display: grid;
   gap: var(--space-2xl);
 }
-
 .form__section {
   border: 0;
   padding: 0;
@@ -70,7 +68,6 @@
   display: grid;
   gap: var(--space-md);
 }
-
 .form__legend {
   display: flex;
   align-items: baseline;
@@ -95,7 +92,6 @@
   font-weight: 500;
   font-size: var(--text-xl);
   letter-spacing: -0.005em;
-  color: var(--text);
   font-feature-settings: 'kern' on, 'liga' on, 'dlig' on, 'onum' on;
 }
 
@@ -111,12 +107,7 @@ textarea {
 }
 .span-2 { grid-column: span 2; }
 
-.field {
-  display: grid;
-  gap: var(--space-2xs);
-}
-.field--narrow input { max-width: 5rem; }
-
+.field { display: grid; gap: var(--space-2xs); }
 .field__label {
   font-size: var(--text-xs);
   letter-spacing: 0.08em;
@@ -130,7 +121,61 @@ textarea {
   .span-2 { grid-column: 1; }
 }
 
-/* --- Block sections (findings + photos) ----------------------------- */
+/* --- Presenze table-ish layout ------------------------------------- */
+
+.presenze {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.presenza {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 0.65fr 0.65fr 0.6fr auto;
+  gap: var(--space-xs);
+  align-items: end;
+}
+.presenza__field { display: grid; gap: var(--space-2xs); min-width: 0; }
+.presenza__field .field__label { font-size: 0.7rem; }
+
+.presenza__rm {
+  width: 32px;
+  height: 40px;
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  color: var(--text-soft);
+  cursor: pointer;
+  align-self: end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.presenza__rm:hover:not([disabled]) {
+  border-color: var(--accent-rule);
+  color: var(--accent);
+  background: var(--accent-quiet);
+}
+.presenza__rm[disabled] { opacity: 0.3; cursor: not-allowed; }
+
+@media (max-width: 720px) {
+  .presenza {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "name name"
+      "role role"
+      "hs   he"
+      "tot  rm";
+    gap: var(--space-xs);
+  }
+  .presenza__name { grid-area: name; }
+  .presenza__role { grid-area: role; }
+  .presenza__field:nth-of-type(3) { grid-area: hs; }
+  .presenza__field:nth-of-type(4) { grid-area: he; }
+  .presenza__total { grid-area: tot; }
+  .presenza__rm { grid-area: rm; width: 100%; }
+}
+
+/* --- Block sections (findings + photos) ---------------------------- */
 
 .block {
   margin-top: var(--space-2xl);
@@ -175,7 +220,6 @@ textarea {
   font-style: italic;
   font-family: var(--font-display);
   font-size: var(--text-md);
-  font-weight: 400;
   background: var(--surface-warm);
   border-radius: var(--radius-md);
 }
@@ -185,8 +229,6 @@ textarea {
   padding: 0.4rem 0.75rem;
   min-height: 36px;
 }
-
-/* --- Findings ------------------------------------------------------- */
 
 .findings {
   list-style: none;
@@ -207,20 +249,7 @@ textarea {
   font-size: var(--text-md);
   margin: 0 0 var(--space-2xs);
 }
-.finding__meta {
-  font-size: var(--text-sm);
-  margin: 0 0 var(--space-xs);
-  display: flex;
-  gap: var(--space-xs);
-}
-.finding__sep { color: var(--text-faint); }
-.finding__desc {
-  margin: 0;
-  font-size: var(--text-sm);
-  line-height: var(--leading-snug);
-}
-
-/* --- Photos --------------------------------------------------------- */
+.finding__desc { margin: 0; font-size: var(--text-sm); line-height: var(--leading-snug); }
 
 .photos {
   list-style: none;
@@ -230,24 +259,16 @@ textarea {
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: var(--space-md);
 }
-.photos__item {
-  display: grid;
-  gap: var(--space-2xs);
-}
-.photos__cap {
-  font-size: var(--text-xs);
-  margin: 0;
-  line-height: var(--leading-snug);
-  letter-spacing: 0.01em;
-}
+.photos__item { display: grid; gap: var(--space-2xs); }
+.photos__cap { font-size: var(--text-xs); margin: 0; line-height: var(--leading-snug); }
 
-/* --- Sticky bottom toolbar ----------------------------------------- */
+.upload { display: inline-block; }
+
+/* --- Sticky toolbar ------------------------------------------------ */
 
 .page__toolbar {
   position: sticky;
   bottom: 0;
-  left: 0;
-  right: 0;
   margin: var(--space-2xl) calc(var(--space-lg) * -1) calc(var(--space-2xl) * -1);
   padding: var(--space-sm) var(--space-lg);
   background: var(--surface-elev);
@@ -260,13 +281,8 @@ textarea {
   box-shadow: 0 -4px 12px oklch(0 0 0 / 0.04);
   z-index: 5;
 }
-.page__toolbar-meta {
-  font-size: var(--text-xs);
-}
-.page__toolbar-actions {
-  display: flex;
-  gap: var(--space-xs);
-}
+.page__toolbar-meta { font-size: var(--text-xs); }
+.page__toolbar-actions { display: flex; gap: var(--space-xs); }
 
 .form__error {
   margin-top: var(--space-md);
@@ -276,54 +292,4 @@ textarea {
   border-radius: var(--radius-md);
   padding: var(--space-sm) var(--space-md);
   font-size: var(--text-sm);
-}
-
-.upload { display: inline-block; }
-
-/* --- Giornale day list --------------------------------------------- */
-
-.days {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: var(--space-xs);
-}
-.day {
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-md);
-  background: var(--surface-elev);
-  transition: background var(--transition-quick);
-}
-.day:hover { background: var(--surface-warm); }
-.day__link {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-md);
-  padding: var(--space-sm) var(--space-md);
-  text-decoration: none;
-  color: inherit;
-  flex-wrap: wrap;
-}
-.day__date {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-weight: 500;
-  font-size: var(--text-md);
-  color: var(--accent);
-  font-variant-numeric: oldstyle-nums tabular-nums;
-  min-width: 6rem;
-}
-.day__meta {
-  font-size: var(--text-sm);
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.3em;
-  flex-wrap: wrap;
-}
-.day__loc {
-  font-size: var(--text-sm);
-  font-style: italic;
-  margin-left: auto;
-  font-family: var(--font-display);
 }

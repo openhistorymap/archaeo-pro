@@ -14,6 +14,7 @@
 import { Injectable, inject } from '@angular/core';
 
 import {
+  DayLog,
   Finding,
   Photo,
   StratigraphicUnit,
@@ -95,6 +96,7 @@ export class SurveillanceStore {
       area: null,
       findings: [],
       photos: [],
+      days: [],
       created_at: now,
       updated_at: now,
     };
@@ -119,7 +121,7 @@ export class SurveillanceStore {
   async loadSurveillance(ref: RepoRef): Promise<Surveillance> {
     const root = await this.gh.getFile(ref, 'surveillance.json');
     if (!root) throw new Error(`surveillance.json missing in ${ref.owner}/${ref.name}`);
-    const base = JSON.parse(this.decode(root.content)) as Omit<Surveillance, 'findings' | 'photos'>;
+    const base = JSON.parse(this.decode(root.content)) as Omit<Surveillance, 'findings' | 'photos' | 'days'>;
 
     const findings: Finding[] = [];
     for (const item of await this.gh.listDir(ref, 'findings')) {
@@ -138,6 +140,7 @@ export class SurveillanceStore {
         tags: (props.tags as Record<string, string>) ?? {},
         geometry: feature.geometry ?? null,
         units: [],
+        recorded_on: (props.recorded_on as string) ?? null,
       };
       finding.units = await this.loadUnits(ref, finding.id);
       findings.push(finding);
@@ -151,7 +154,20 @@ export class SurveillanceStore {
       photos.push(JSON.parse(this.decode(f.content)) as Photo);
     }
 
-    return { ...base, findings, photos } as Surveillance;
+    const days: DayLog[] = [];
+    for (const item of await this.gh.listDir(ref, 'daily')) {
+      if (item.type !== 'file' || !item.name.endsWith('.json')) continue;
+      const f = await this.gh.getFile(ref, item.path);
+      if (!f) continue;
+      try {
+        days.push(JSON.parse(this.decode(f.content)) as DayLog);
+      } catch {
+        // skip a malformed day; the rest of the journal still loads
+      }
+    }
+    days.sort((a, b) => (a.date < b.date ? -1 : 1));
+
+    return { ...base, findings, photos, days } as Surveillance;
   }
 
   private async loadUnits(ref: RepoRef, findingId: string): Promise<StratigraphicUnit[]> {
@@ -200,6 +216,7 @@ export class SurveillanceStore {
         start_date: finding.start_date ?? null,
         end_date: finding.end_date ?? null,
         tags: finding.tags ?? {},
+        recorded_on: finding.recorded_on ?? null,
       },
     };
     await this.gh.putFile(
@@ -240,14 +257,51 @@ export class SurveillanceStore {
     return photo;
   }
 
+  // ---- giornale di scavo ----------------------------------------------
+
+  async saveDay(ref: RepoRef, day: DayLog): Promise<DayLog> {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day.date)) {
+      throw new Error(`Day date must be YYYY-MM-DD, got "${day.date}"`);
+    }
+    const path = `daily/${day.date}.json`;
+    const existing = await this.gh.getFile(ref, path);
+    const now = new Date().toISOString();
+    const updated: DayLog = {
+      ...day,
+      created_at: existing ? day.created_at || now : now,
+      updated_at: now,
+    };
+    await this.gh.putFile(
+      ref,
+      path,
+      JSON.stringify(updated, null, 2) + '\n',
+      `archaeo-pro: ${existing ? 'update' : 'add'} giornale ${day.date}`,
+      existing?.sha,
+    );
+    return updated;
+  }
+
+  async deleteDay(ref: RepoRef, date: string): Promise<void> {
+    const path = `daily/${date}.json`;
+    const existing = await this.gh.getFile(ref, path);
+    if (!existing) return;
+    await this.gh.deleteFile(ref, path, existing.sha, `archaeo-pro: rimuovi giornale ${date}`);
+  }
+
+  async getDay(ref: RepoRef, date: string): Promise<DayLog | null> {
+    const f = await this.gh.getFile(ref, `daily/${date}.json`);
+    if (!f) return null;
+    return JSON.parse(this.decode(f.content)) as DayLog;
+  }
+
   // ---- helpers ---------------------------------------------------------
 
   refForSurveillance(entry: SurveillanceIndexEntry): RepoRef {
     return entry.repo;
   }
 
-  private toRoot(s: Surveillance): Omit<Surveillance, 'findings' | 'photos'> {
-    const { findings: _f, photos: _p, ...root } = s;
+  private toRoot(s: Surveillance): Omit<Surveillance, 'findings' | 'photos' | 'days'> {
+    const { findings: _f, photos: _p, days: _d, ...root } = s;
     return root;
   }
 

@@ -1,0 +1,187 @@
+<section class="page">
+  @if (loading()) {
+    <p class="page__state muted">Lettura della giornata…</p>
+  } @else if (error() && !surveillance()) {
+    <p class="page__state page__state--error">{{ error() }}</p>
+  } @else if (surveillance(); as s) {
+
+    <nav class="page__crumbs">
+      <a [routerLink]="['/surveillances', s.id]" class="page__back">← Scheda</a>
+    </nav>
+
+    <header class="page__head">
+      <p class="page__eyebrow">giornale di scavo</p>
+      <h1 class="page__title">
+        <span class="page__title-day">{{ formatDate(date()) }}</span>
+        <span class="page__title-wd"> · {{ weekdayLabel(date()) }}</span>
+      </h1>
+      <p class="page__sub muted">{{ s.title }}</p>
+    </header>
+
+    <form class="form" [formGroup]="form" (ngSubmit)="save()">
+
+      <!-- Presenze -->
+      <fieldset class="form__section">
+        <legend class="form__legend">
+          <span class="form__legend-num">i.</span>
+          <span class="form__legend-title">Presenze in cantiere</span>
+        </legend>
+
+        <div class="presenze" formArrayName="presenze">
+          @for (p of presenzeArray.controls; track $index; let i = $index) {
+            <div class="presenza" [formGroupName]="i">
+              <label class="presenza__field presenza__name">
+                <span class="field__label">Nome</span>
+                <input type="text" formControlName="name" autocomplete="name" placeholder="Nome e cognome" />
+              </label>
+              <label class="presenza__field presenza__role">
+                <span class="field__label">Ruolo</span>
+                <select formControlName="role">
+                  @for (r of roles; track r.value) {
+                    <option [value]="r.value">{{ r.label }}</option>
+                  }
+                </select>
+              </label>
+              <label class="presenza__field presenza__hours">
+                <span class="field__label">Inizio</span>
+                <input type="time" formControlName="hours_start" (change)="computeHours(i)" />
+              </label>
+              <label class="presenza__field presenza__hours">
+                <span class="field__label">Fine</span>
+                <input type="time" formControlName="hours_end" (change)="computeHours(i)" />
+              </label>
+              <label class="presenza__field presenza__total">
+                <span class="field__label">Ore</span>
+                <input type="number" step="0.25" formControlName="hours_total" class="tabular" />
+              </label>
+              <button type="button" class="presenza__rm" [disabled]="presenzeArray.length <= 1"
+                      (click)="removePresence(i)" aria-label="Rimuovi presenza">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+                     stroke-width="1.5" aria-hidden="true">
+                  <path d="M3 7h8" />
+                </svg>
+              </button>
+            </div>
+          }
+        </div>
+
+        <button type="button" class="btn btn--ghost btn--sm" (click)="addPresence()">
+          + Aggiungi presenza
+        </button>
+      </fieldset>
+
+      <!-- Operazioni -->
+      <fieldset class="form__section">
+        <legend class="form__legend">
+          <span class="form__legend-num">ii.</span>
+          <span class="form__legend-title">Operazioni svolte</span>
+        </legend>
+        <textarea formControlName="operazioni" rows="4"
+          placeholder="Sintesi delle operazioni eseguite nella giornata: scavo manuale dei livelli superficiali, pulitura UU.SS., fotografie e rilievo grafico…"></textarea>
+      </fieldset>
+
+      <!-- Localizzazione & condizioni -->
+      <fieldset class="form__section">
+        <legend class="form__legend">
+          <span class="form__legend-num">iii.</span>
+          <span class="form__legend-title">Localizzazione &amp; condizioni</span>
+        </legend>
+        <div class="grid">
+          <label class="field">
+            <span class="field__label">Localizzazione del lavoro</span>
+            <input type="text" formControlName="localizzazione"
+                   placeholder="Settore, trincea, area, riferimento sul cantiere…" />
+          </label>
+          <label class="field">
+            <span class="field__label">Condizioni meteo</span>
+            <input type="text" formControlName="weather" placeholder="Sereno · pioggia leggera · …" />
+          </label>
+          <label class="field span-2">
+            <span class="field__label">Note interne</span>
+            <textarea formControlName="notes" rows="2"
+                      placeholder="Annotazioni a margine, comunicazioni con la D.L., richieste alla SABAP…"></textarea>
+          </label>
+        </div>
+      </fieldset>
+    </form>
+
+    <!-- Findings filed under this day -->
+    <section class="block">
+      <header class="block__head">
+        <h2 class="block__title">
+          <span class="block__num">iv.</span>
+          Evidenze del giorno
+          <span class="block__count">({{ findingsOfDay().length }})</span>
+        </h2>
+        <button type="button" class="btn btn--ghost btn--sm" (click)="goToMap()">
+          Apri sulla mappa
+        </button>
+      </header>
+      @if (findingsOfDay().length === 0) {
+        <p class="block__empty muted">
+          Nessuna evidenza ancora associata a questa giornata. Aggiungile dalla mappa
+          (verranno automaticamente datate {{ formatDate(date()) }}).
+        </p>
+      } @else {
+        <ul class="findings">
+          @for (f of findingsOfDay(); track f.id) {
+            <li class="finding">
+              <p class="finding__name">{{ f.name }}</p>
+              @if (f.description) { <p class="finding__desc muted">{{ f.description }}</p> }
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <!-- Photos filed under this day -->
+    <section class="block">
+      <header class="block__head">
+        <h2 class="block__title">
+          <span class="block__num">v.</span>
+          Foto del giorno
+          <span class="block__count">({{ photosOfDay().length }})</span>
+        </h2>
+        <label class="upload">
+          <input type="file" accept="image/*" multiple (change)="onPhotoSelected($event)" hidden #fileInput />
+          <button type="button" class="btn btn--ghost btn--sm" [disabled]="busy()" (click)="fileInput.click()">
+            + Aggiungi foto
+          </button>
+        </label>
+      </header>
+      @if (photosOfDay().length === 0) {
+        <p class="block__empty muted">
+          Nessuna foto ancora caricata per questa giornata.
+          Le foto vengono ridimensionate automaticamente prima del caricamento.
+        </p>
+      } @else {
+        <ul class="photos">
+          @for (p of photosOfDay(); track p.id) {
+            <li class="photos__item">
+              <app-photo-thumb [photo]="p" [repo]="ref()!" />
+              <p class="photos__cap muted">{{ p.caption || p.filename }}</p>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    @if (error()) { <p class="form__error">{{ error() }}</p> }
+
+    <div class="page__toolbar">
+      <span class="page__toolbar-meta muted">
+        @if (day(); as d) {
+          <span>Aggiornata <span class="tabular">{{ d.updated_at | date:'dd.MM.yyyy HH:mm' }}</span></span>
+        } @else {
+          <span>Nuova giornata</span>
+        }
+      </span>
+      <div class="page__toolbar-actions">
+        <a [routerLink]="['/surveillances', s.id]" class="btn btn--ghost">Annulla</a>
+        <button type="button" class="btn btn--primary" [disabled]="busy()" (click)="save()">
+          @if (busy()) { Salvataggio… } @else { Salva giornata }
+        </button>
+      </div>
+    </div>
+  }
+</section>

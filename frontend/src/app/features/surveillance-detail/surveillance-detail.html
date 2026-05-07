@@ -20,6 +20,46 @@
       }
     </header>
 
+    <section class="block">
+      <header class="block__head">
+        <h2 class="block__title">
+          <span class="block__num">⌘</span>
+          Giornale di scavo
+          <span class="block__count">({{ s.days.length }})</span>
+        </h2>
+        <a [routerLink]="['/surveillances', s.id, 'days', todayISO()]" class="btn btn--ghost btn--sm">
+          + Oggi · {{ formatDay(todayISO()) }}
+        </a>
+      </header>
+      @if (s.days.length === 0) {
+        <p class="block__empty muted">
+          Nessuna giornata ancora registrata. Apri la giornata di oggi per iniziare il giornale.
+        </p>
+      } @else {
+        <ul class="days">
+          @for (d of s.days; track d.date) {
+            <li class="day">
+              <a [routerLink]="['/surveillances', s.id, 'days', d.date]" class="day__link">
+                <span class="day__date tabular">{{ formatDay(d.date) }}</span>
+                <span class="day__meta muted">
+                  <span class="tabular">{{ d.presenze.length }}</span>
+                  <span>{{ d.presenze.length === 1 ? 'presenza' : 'presenze' }}</span>
+                  @if (totalHoursForDay(d.presenze)) {
+                    <span aria-hidden="true">·</span>
+                    <span class="tabular">{{ totalHoursForDay(d.presenze) }}</span>
+                    <span>ore</span>
+                  }
+                </span>
+                @if (d.localizzazione) {
+                  <span class="day__loc muted">{{ d.localizzazione }}</span>
+                }
+              </a>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
     <form class="form" [formGroup]="form" (ngSubmit)="save()">
       <fieldset class="form__section">
         <legend class="form__legend">

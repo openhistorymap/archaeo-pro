@@ -57,6 +57,11 @@ function uuidv4(): string {
   return crypto.randomUUID();
 }
 
+function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 const OSM_STYLE: StyleSpecification = {
   version: 8,
   sources: {
@@ -366,6 +371,7 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
         tags,
         geometry: { type: 'Point', coordinates: [pending[0], pending[1]] },
         units: [],
+        recorded_on: todayISO(),
       };
       await this.store.addFinding(ref, finding);
       this.surveillance.set({ ...current, findings: [...current.findings, finding] });

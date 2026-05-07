@@ -18,11 +18,15 @@ export interface Finding {
   name: string;
   description?: string | null;
   interpretation?: string | null;
+  /** Date range of the *finding itself* — e.g. Roman = -0050 to 0200. */
   start_date?: string | null;
   end_date?: string | null;
   tags: Record<string, string>;
   geometry?: GeoJSON.Geometry | null;
   units: StratigraphicUnit[];
+  /** ISO date (YYYY-MM-DD) when the archaeologist recorded the finding.
+   * Links this evidenza to a giornale-di-scavo day. */
+  recorded_on?: string | null;
 }
 
 export interface Photo {
@@ -30,6 +34,7 @@ export interface Photo {
   filename: string;
   caption?: string | null;
   bearing?: number | null;
+  /** EXIF datetime of capture (camera clock). */
   taken_at?: string | null;
   /** GeoJSON Point in EPSG:4326, derived from EXIF when available. */
   location?: GeoJSON.Point | null;
@@ -37,6 +42,12 @@ export interface Photo {
   path: string;
   /** Recorded MIME type of the binary. */
   content_type?: string | null;
+  /** ISO date (YYYY-MM-DD) of the giornale day this photo belongs to. */
+  recorded_on?: string | null;
+  /** intervento (panoramica giornaliera) vs dettaglio (post-pulizia). */
+  shot_type?: 'intervento' | 'dettaglio' | null;
+  /** Optional link to a Finding when shot_type === 'dettaglio'. */
+  finding_id?: string | null;
 }
 
 export interface Surveillance {
@@ -62,7 +73,38 @@ export interface Surveillance {
 
   findings: Finding[];
   photos: Photo[];
+  days: DayLog[];
 
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Giornale di scavo / assistenza — one entry per site day.
+ *
+ * The Sovrintendenza requires: dates, hourly presences, names of personnel,
+ * brief description of operations and their location. Stored as
+ * `daily/<YYYY-MM-DD>.json` in the per-surveillance repo.
+ */
+export interface Presence {
+  name: string;
+  /** direttore tecnico · archeologo · operatore · operaio · altro */
+  role?: string | null;
+  hours_start?: string | null;   // "08:00"
+  hours_end?: string | null;     // "17:30"
+  /** Total hours on site for the day. Optional manual override (covers breaks). */
+  hours_total?: number | null;
+}
+
+export interface DayLog {
+  /** ISO date YYYY-MM-DD; also the storage filename. */
+  date: string;
+  presenze: Presence[];
+  operazioni?: string | null;
+  /** Local descriptor for where the day's work was concentrated. */
+  localizzazione?: string | null;
+  weather?: string | null;
+  notes?: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -123,6 +123,7 @@ export class SurveillanceDetail {
     this.busy.set(true);
     this.error.set(null);
     try {
+      const today = this.todayISO();
       for (const f of Array.from(files)) {
         const photo = await this.store.attachPhoto(ref, f, {
           filename: f.name,
@@ -130,6 +131,9 @@ export class SurveillanceDetail {
           bearing: null,
           taken_at: null,
           location: null,
+          recorded_on: today,
+          shot_type: 'intervento',
+          finding_id: null,
         });
         const current = this.surveillance();
         if (current) {
@@ -183,6 +187,21 @@ export class SurveillanceDetail {
     } finally {
       this.busy.set(false);
     }
+  }
+
+  todayISO(): string {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  formatDay(iso: string): string {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+    return m ? `${m[3]}.${m[2]}.${m[1]}` : iso;
+  }
+
+  totalHoursForDay(presenze: { hours_total?: number | null }[] | undefined): number {
+    if (!presenze) return 0;
+    return presenze.reduce((sum, p) => sum + (p.hours_total ?? 0), 0);
   }
 
   private downloadBlob(blob: Blob, filename: string): void {

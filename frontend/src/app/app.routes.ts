@@ -36,4 +36,10 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/surveillance-map/surveillance-map').then((m) => m.SurveillanceMap),
   },
+  {
+    path: 'surveillances/:id/days/:date',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/day-editor/day-editor').then((m) => m.DayEditor),
+  },
 ];
