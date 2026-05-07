@@ -78,6 +78,9 @@ const ITALY_CENTER: LngLatLike = [12.5, 42.0];
   imports: [CommonModule, ReactiveFormsModule, RouterLink],
   templateUrl: './surveillance-map.html',
   styleUrl: './surveillance-map.scss',
+  host: {
+    '(document:keydown.escape)': 'onEscape()',
+  },
 })
 export class SurveillanceMap implements AfterViewInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
@@ -318,6 +321,10 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
   }
 
   // ---- adding a finding -----------------------------------------------
+
+  onEscape(): void {
+    if (this.mode() === 'add-finding') this.cancelAddingFinding();
+  }
 
   startAddingFinding(): void {
     this.mode.set('add-finding');

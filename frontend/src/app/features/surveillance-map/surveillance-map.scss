@@ -232,11 +232,125 @@
   min-height: 36px;
 }
 
-/* --- Finding form (in-panel) ---------------------------------------- */
+/* --- Evidence dialog (modal-ish, anchored top-right on desktop,
+       bottom sheet on mobile) -------------------------------------- */
+
+.evidence-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 5vh var(--space-md) var(--space-md);
+  pointer-events: none; /* let scrim/card claim individually */
+  animation: dialog-fade var(--transition-base) ease-out;
+}
+@keyframes dialog-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.evidence-dialog__scrim {
+  position: absolute;
+  inset: 0;
+  background: oklch(0.18 0.02 50 / 0.32);
+  pointer-events: auto;
+}
+
+.evidence-dialog__card {
+  position: relative;
+  pointer-events: auto;
+  width: 100%;
+  max-width: 30rem;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--surface-elev);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-lg) var(--space-xl) var(--space-xl);
+  animation: dialog-slide var(--transition-base) cubic-bezier(0.2, 0, 0, 1);
+}
+@keyframes dialog-slide {
+  from { transform: translateY(-12px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+.evidence-dialog__head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--rule);
+}
+.evidence-dialog__eyebrow {
+  grid-column: 1;
+  font-size: var(--text-xs);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--text-soft);
+  margin: 0 0 var(--space-2xs);
+}
+.evidence-dialog__title {
+  grid-column: 1;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 500;
+  font-size: var(--text-xl);
+  letter-spacing: -0.005em;
+  margin: 0;
+  font-feature-settings: 'kern' on, 'liga' on, 'dlig' on, 'onum' on;
+}
+.evidence-dialog__close {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  width: 32px;
+  height: 32px;
+  align-self: start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  color: var(--text-soft);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.evidence-dialog__close:hover {
+  color: var(--text);
+  background: var(--surface-warm);
+}
+
+@media (max-width: 600px) {
+  .evidence-dialog {
+    align-items: flex-end;
+    padding: var(--space-md) var(--space-xs) var(--space-xs);
+  }
+  .evidence-dialog__card {
+    max-height: 80dvh;
+    padding: var(--space-md) var(--space-lg) var(--space-md);
+  }
+  @keyframes dialog-slide {
+    from { transform: translateY(20px); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .evidence-dialog,
+  .evidence-dialog__card {
+    animation: none;
+  }
+}
+
+/* --- Finding form (now inside the dialog) --------------------------- */
 
 .finding-form {
   display: grid;
-  gap: var(--space-sm);
+  gap: var(--space-md);
 }
 
 .ff__field {
@@ -245,7 +359,7 @@
 }
 .ff__label {
   font-size: var(--text-xs);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   font-weight: 600;
   color: var(--text-soft);
@@ -255,10 +369,10 @@
 .ff__field select,
 .ff__field textarea {
   font-size: var(--text-sm);
-  padding: 0.4rem 0.55rem;
-  min-height: 36px;
+  padding: 0.5rem 0.7rem;
+  min-height: 40px;
 }
-.ff__field textarea { line-height: var(--leading-snug); resize: vertical; }
+.ff__field textarea { line-height: var(--leading-snug); resize: vertical; min-height: 5rem; }
 .ff__field select {
   background: var(--surface-sunk);
   appearance: none;
@@ -266,25 +380,25 @@
     linear-gradient(45deg, transparent 50%, var(--text-soft) 50%),
     linear-gradient(135deg, var(--text-soft) 50%, transparent 50%);
   background-position:
-    calc(100% - 14px) 14px,
-    calc(100% - 9px) 14px;
+    calc(100% - 14px) 16px,
+    calc(100% - 9px) 16px;
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
-  padding-right: 1.5rem;
+  padding-right: 1.75rem;
 }
 
 .ff__row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--space-xs);
+  gap: var(--space-sm);
 }
 
 .ff__actions {
   display: flex;
   justify-content: flex-end;
-  gap: var(--space-xs);
+  gap: var(--space-sm);
   margin-top: var(--space-xs);
-  padding-top: var(--space-xs);
+  padding-top: var(--space-md);
   border-top: 1px solid var(--rule);
 }
 
