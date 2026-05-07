@@ -1,21 +1,16 @@
+# Local-dev image. Vercel doesn't use this — see vercel.json.
+# PDF conversion is delegated to the Gotenberg sidecar (see pdf-service/),
+# so this image is small.
 FROM python:3.12-slim
 
-# LibreOffice for DOCX → PDF conversion + GDAL/PROJ headers for shapely
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libreoffice \
-        fonts-dejavu \
-        curl \
         ca-certificates \
-        build-essential \
+        curl \
     && rm -rf /var/lib/apt/lists/*
 
-# uv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
-    && ln -s /root/.local/bin/uv /usr/local/bin/uv
-
 WORKDIR /app
-COPY pyproject.toml ./
-RUN uv pip install --system -e .
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt uvicorn[standard]
 
 COPY . .
 

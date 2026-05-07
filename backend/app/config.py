@@ -6,10 +6,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # Where transient document renders live; cleaned up by /tmp lifecycle in the container.
+    # Where transient document renders live; cleaned up by /tmp lifecycle.
     work_dir: Path = Path("/tmp/archaeo-pro")
-    libreoffice_bin: str = "libreoffice"
-    cors_origins: str = "http://localhost:4200"
+    cors_origins: str = "http://localhost:4200,https://archaeo.pro,https://archeo.pro"
+
+    # Gotenberg PDF microservice — runs separately (LibreOffice can't live on Vercel).
+    # See pdf-service/ for deploy config; locally docker-compose brings it up.
+    gotenberg_url: str = "http://gotenberg:3000"
+    gotenberg_user: str | None = None
+    gotenberg_password: str | None = None
 
     # WMS upstream — defaults are best-known endpoints; override via env if they drift.
     # See memory/reference_italian_data_sources.md.

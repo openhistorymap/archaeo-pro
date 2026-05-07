@@ -1,13 +1,17 @@
-"""DOCX → PDF via LibreOffice headless.
+"""DOCX → PDF via Gotenberg.
 
-LibreOffice is the only realistic open path that preserves the docx layout.
-We invoke it as a subprocess; it writes the .pdf alongside the .docx.
+Gotenberg is a small headless service that wraps LibreOffice; we run a copy
+on a server outside Vercel (which can't host LibreOffice). The API calls
+Gotenberg over HTTP with basic auth.
+
+In local dev, docker-compose brings up Gotenberg alongside the API. In prod,
+GOTENBERG_URL points to the public Gotenberg deployment (see pdf-service/).
 """
 from __future__ import annotations
 
-import shutil
-import subprocess
 from pathlib import Path
+
+import httpx
 
 from app.config import settings
 
@@ -16,38 +20,37 @@ class PdfConversionError(RuntimeError):
     pass
 
 
-def docx_to_pdf(docx_path: Path) -> Path:
+_GOTENBERG_PATH = "/forms/libreoffice/convert"
+_TIMEOUT = httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=10.0)
+
+
+async def docx_to_pdf(docx_path: Path) -> Path:
     if not docx_path.is_file():
         raise FileNotFoundError(docx_path)
-
-    bin_path = shutil.which(settings.libreoffice_bin) or settings.libreoffice_bin
-
-    cmd = [
-        bin_path,
-        "--headless",
-        "--norestore",
-        "--nologo",
-        "--convert-to",
-        "pdf",
-        "--outdir",
-        str(docx_path.parent),
-        str(docx_path),
-    ]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, timeout=120, check=False)
-    except FileNotFoundError as exc:
+    if not settings.gotenberg_url:
         raise PdfConversionError(
-            f"LibreOffice not found at '{bin_path}'. Install it or set LIBREOFFICE_BIN."
-        ) from exc
-    except subprocess.TimeoutExpired as exc:
-        raise PdfConversionError("LibreOffice conversion timed out") from exc
-
-    if proc.returncode != 0:
-        raise PdfConversionError(
-            f"LibreOffice exited with {proc.returncode}: {proc.stderr.decode(errors='replace')}"
+            "GOTENBERG_URL is not configured. Point it at a Gotenberg deployment."
         )
 
+    auth: tuple[str, str] | None = None
+    if settings.gotenberg_user and settings.gotenberg_password:
+        auth = (settings.gotenberg_user, settings.gotenberg_password)
+
     pdf_path = docx_path.with_suffix(".pdf")
-    if not pdf_path.is_file():
-        raise PdfConversionError("LibreOffice did not produce a PDF")
+    url = settings.gotenberg_url.rstrip("/") + _GOTENBERG_PATH
+
+    with docx_path.open("rb") as f:
+        files = {"files": (docx_path.name, f, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+        try:
+            async with httpx.AsyncClient(timeout=_TIMEOUT, auth=auth) as client:
+                r = await client.post(url, files=files)
+        except httpx.HTTPError as exc:
+            raise PdfConversionError(f"Gotenberg unreachable: {exc}") from exc
+
+    if r.status_code >= 400:
+        raise PdfConversionError(
+            f"Gotenberg returned {r.status_code}: {r.text[:300]}"
+        )
+
+    pdf_path.write_bytes(r.content)
     return pdf_path

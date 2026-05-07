@@ -64,7 +64,7 @@ async def render_pdf_endpoint(
     photo_bytes = await _collect_photos(photos)
     docx_path = render_docx(payload, photo_bytes)
     try:
-        pdf_path = docx_to_pdf(docx_path)
+        pdf_path = await docx_to_pdf(docx_path)
     except PdfConversionError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return FileResponse(
