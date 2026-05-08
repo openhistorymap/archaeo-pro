@@ -245,6 +245,23 @@ def render_docx(
                 if t.kind == "dettaglio" and t.finding_id == f.id:
                     _embed_tavola(doc, t, tavola_bytes, comune=s.comune, provincia=s.provincia)
 
+    # Orphan detail tavole — kind='dettaglio' with no finding_id, or pointing
+    # at a finding that's been deleted. Without this they'd never render.
+    finding_ids = {f.id for f in s.findings}
+    orphans = [
+        t for t in s.tavole
+        if t.kind == "dettaglio" and (not t.finding_id or t.finding_id not in finding_ids)
+    ]
+    if orphans:
+        _heading(doc, "7.2 Tavole di dettaglio aggiuntive", level=2)
+        _para(
+            doc,
+            "Cartografie di dettaglio non collegate a una specifica evidenza archeologica.",
+            italic=True,
+        )
+        for t in orphans:
+            _embed_tavola(doc, t, tavola_bytes, comune=s.comune, provincia=s.provincia)
+
     _heading(doc, "8. Documentazione fotografica")
     if s.photos:
         for p in s.photos:
@@ -265,11 +282,76 @@ def render_docx(
     _heading(doc, "9. Conclusioni")
     _para(doc, s.conclusioni)
 
+    _render_elenco_tavole(doc, s)
+
     out_dir = settings.work_dir / f"render-{uuid4().hex}"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "sorveglianza.docx"
     doc.save(out_path)
     return out_path
+
+
+_TAVOLA_KIND_LABEL = {
+    "insieme": "Insieme",
+    "dettaglio": "Dettaglio",
+    "storica": "Storica",
+}
+
+
+def _render_elenco_tavole(doc, s: SurveillancePayload) -> None:
+    """Appendix: a single table cataloguing every tavola in the survey, with
+    its kind, capture date, caption, and the place where it is embedded
+    (per the Sovrintendenza requirement of 'Elenchi della documentazione
+    grafica e fotografica')."""
+    if not s.tavole:
+        return
+
+    _heading(doc, "Allegato A — Elenco delle tavole grafiche")
+    _para(
+        doc,
+        "Riepilogo di tutte le cartografie incluse nel documento, ordinate "
+        "per data di cattura.",
+        italic=True,
+    )
+
+    findings_by_id = {f.id: f for f in s.findings}
+    rows = sorted(s.tavole, key=lambda t: t.captured_on or "")
+
+    table = doc.add_table(rows=len(rows) + 1, cols=5)
+    table.style = "Table Grid"
+    table.autofit = False
+
+    headers = ("N°", "Tipo", "Data", "Didascalia", "Sezione")
+    widths = (Cm(1.0), Cm(2.5), Cm(2.5), Cm(7.5), Cm(2.5))
+    hdr = table.rows[0].cells
+    for i, label in enumerate(headers):
+        hdr[i].text = label
+        hdr[i].width = widths[i]
+        for run in hdr[i].paragraphs[0].runs:
+            run.bold = True
+            run.font.size = Pt(10)
+
+    for i, t in enumerate(rows, 1):
+        row = table.rows[i].cells
+        row[0].text = str(i)
+        row[1].text = _TAVOLA_KIND_LABEL.get(t.kind, t.kind)
+        row[2].text = _format_italian_date(t.captured_on) if t.captured_on else "—"
+        row[3].text = t.caption or t.filename or "—"
+        # Section reference: where the tavola is embedded.
+        if t.kind == "insieme":
+            row[4].text = "§ 2.1"
+        elif t.kind == "storica":
+            row[4].text = "§ 2.2"
+        elif t.kind == "dettaglio":
+            f = findings_by_id.get(t.finding_id) if t.finding_id else None
+            row[4].text = f"§ 7.1 ({f.name})" if f else "§ 7.2"
+        else:
+            row[4].text = "—"
+        for cell, w in zip(row, widths):
+            cell.width = w
+            for para in cell.paragraphs:
+                for run in para.runs:
+                    run.font.size = Pt(10)
 
 
 def _embed_tavola(
