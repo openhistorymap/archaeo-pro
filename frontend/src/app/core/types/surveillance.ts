@@ -50,9 +50,12 @@ export interface Photo {
   finding_id?: string | null;
 }
 
+export type SurveillanceStatus = 'draft' | 'in-progress' | 'submitted' | 'archived';
+
 export interface Surveillance {
   id: string;
   title: string;
+  status: SurveillanceStatus;
   protocollo?: string | null;
   committente?: string | null;
   direttore_tecnico?: string | null;
@@ -160,6 +163,8 @@ export interface SurveillanceIndexEntry {
   /** Owner/name pair for API calls. */
   repo: { owner: string; name: string };
   ohm_published: boolean;
+  // Re-stated here even though the interface already has `status` above —
+  // this is the index-side mirror, kept in sync by SurveillanceStore.
   created_at: string;
   updated_at: string;
 }

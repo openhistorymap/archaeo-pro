@@ -21,20 +21,54 @@
       <strong>Impossibile caricare l’indice.</strong>
       <span>{{ error() }}</span>
     </div>
-  } @else if (!hasItems()) {
-    <div class="registry__empty">
-      <p class="registry__empty-line">
-        Nessuna sorveglianza ancora registrata.
-      </p>
-      <p class="registry__empty-sub muted">
-        La prima creerà un repository <code>archaeo-pro-{{ '{uuid}' }}</code>
-        nel tuo account GitHub.
-      </p>
-      <a routerLink="/new" class="btn btn--primary">Apri la prima</a>
-    </div>
   } @else {
+    @if (items().length > 0) {
+      <nav class="registry__filter" role="tablist" aria-label="Filtra registro">
+        <button type="button" role="tab" class="filter-chip"
+                [attr.aria-selected]="filter() === 'active'"
+                [class.filter-chip--active]="filter() === 'active'"
+                (click)="setFilter('active')">
+          Attive <span class="filter-chip__count tabular">{{ activeCount() }}</span>
+        </button>
+        <button type="button" role="tab" class="filter-chip"
+                [attr.aria-selected]="filter() === 'archived'"
+                [class.filter-chip--active]="filter() === 'archived'"
+                (click)="setFilter('archived')">
+          Archiviate <span class="filter-chip__count tabular">{{ archivedCount() }}</span>
+        </button>
+        <button type="button" role="tab" class="filter-chip"
+                [attr.aria-selected]="filter() === 'all'"
+                [class.filter-chip--active]="filter() === 'all'"
+                (click)="setFilter('all')">
+          Tutte <span class="filter-chip__count tabular">{{ items().length }}</span>
+        </button>
+      </nav>
+    }
+  }
+  @if (!loading() && !error() && !hasItems()) {
+    @if (items().length === 0) {
+      <div class="registry__empty">
+        <p class="registry__empty-line">
+          Nessuna sorveglianza ancora registrata.
+        </p>
+        <p class="registry__empty-sub muted">
+          La prima creerà un repository <code>archaeo-pro-{{ '{uuid}' }}</code>
+          nel tuo account GitHub.
+        </p>
+        <a routerLink="/new" class="btn btn--primary">Apri la prima</a>
+      </div>
+    } @else {
+      <p class="registry__state muted">
+        @switch (filter()) {
+          @case ('archived') { Nessuna sorveglianza archiviata. }
+          @case ('active')   { Nessuna sorveglianza attiva: tutte sono archiviate. }
+          @default           { Nessun risultato per questo filtro. }
+        }
+      </p>
+    }
+  } @else if (!loading() && !error()) {
     <ol class="registry__list">
-      @for (s of items(); track s.id; let i = $index) {
+      @for (s of visibleItems(); track s.id; let i = $index) {
         <li class="entry">
           <span class="entry__num">{{ formatNumber(i + 1) }}</span>
           <a [routerLink]="['/surveillances', s.id]" class="entry__main">

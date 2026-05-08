@@ -18,6 +18,41 @@
       @if (s.protocollo) {
         <p class="page__sub muted">prot. n. <span class="tabular">{{ s.protocollo }}</span></p>
       }
+
+      <div class="status-row">
+        <span class="status-pill" [attr.data-status]="s.status">{{ statusLabel(s.status) }}</span>
+
+        <div class="status-actions">
+          @switch (s.status) {
+            @case ('draft') {
+              <button type="button" class="btn btn--ghost btn--sm" [disabled]="busy()"
+                      (click)="transitionStatus('in-progress')">Avvia lavorazione</button>
+              <button type="button" class="btn btn--ghost btn--sm" [disabled]="busy()"
+                      (click)="transitionStatus('submitted')">Finalizza</button>
+              <button type="button" class="btn btn--quiet btn--sm" [disabled]="busy()"
+                      (click)="transitionStatus('archived')">Archivia</button>
+            }
+            @case ('in-progress') {
+              <button type="button" class="btn btn--ghost btn--sm" [disabled]="busy()"
+                      (click)="transitionStatus('submitted')">Finalizza</button>
+              <button type="button" class="btn btn--quiet btn--sm" [disabled]="busy()"
+                      (click)="transitionStatus('draft')">Riporta a bozza</button>
+              <button type="button" class="btn btn--quiet btn--sm" [disabled]="busy()"
+                      (click)="transitionStatus('archived')">Archivia</button>
+            }
+            @case ('submitted') {
+              <button type="button" class="btn btn--ghost btn--sm" [disabled]="busy()"
+                      (click)="transitionStatus('in-progress')">Riapri</button>
+              <button type="button" class="btn btn--quiet btn--sm" [disabled]="busy()"
+                      (click)="transitionStatus('archived')">Archivia</button>
+            }
+            @case ('archived') {
+              <button type="button" class="btn btn--ghost btn--sm" [disabled]="busy()"
+                      (click)="transitionStatus('submitted')">Riattiva</button>
+            }
+          }
+        </div>
+      </div>
     </header>
 
     <section class="block">

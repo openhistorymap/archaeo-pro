@@ -56,6 +56,53 @@
   margin: var(--space-xs) 0 0;
 }
 
+/* --- Status row + transitions ------------------------------------- */
+
+.status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+}
+
+.status-pill {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.55rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--rule-strong);
+  color: var(--text-soft);
+  background: var(--surface);
+  white-space: nowrap;
+}
+.status-pill[data-status="in-progress"] {
+  color: var(--accent-strong);
+  border-color: var(--accent-rule);
+  background: var(--accent-quiet);
+}
+.status-pill[data-status="submitted"] {
+  color: oklch(0.4 0.09 145);
+  border-color: oklch(0.7 0.08 145);
+  background: oklch(0.96 0.02 145);
+}
+[data-theme="dark"] .status-pill[data-status="submitted"] {
+  color: oklch(0.85 0.12 145);
+  border-color: oklch(0.5 0.1 145);
+  background: oklch(0.25 0.05 145);
+}
+.status-pill[data-status="archived"] {
+  opacity: 0.65;
+}
+
+.status-actions {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
 /* --- Form sections -------------------------------------------------- */
 
 .form {

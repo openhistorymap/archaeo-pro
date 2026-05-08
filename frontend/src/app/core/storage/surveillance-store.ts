@@ -20,6 +20,7 @@ import {
   StratigraphicUnit,
   Surveillance,
   SurveillanceIndexEntry,
+  SurveillanceStatus,
   Tavola,
 } from '../types/surveillance';
 import { GitHubAuthService } from '../github/auth.service';
@@ -79,6 +80,7 @@ export class SurveillanceStore {
     const surveillance: Surveillance = {
       id,
       title: input.title,
+      status: 'draft',
       protocollo: input.protocollo ?? null,
       committente: null,
       direttore_tecnico: null,
@@ -123,7 +125,12 @@ export class SurveillanceStore {
   async loadSurveillance(ref: RepoRef): Promise<Surveillance> {
     const root = await this.gh.getFile(ref, 'surveillance.json');
     if (!root) throw new Error(`surveillance.json missing in ${ref.owner}/${ref.name}`);
-    const base = JSON.parse(this.decode(root.content)) as Omit<Surveillance, 'findings' | 'photos' | 'days'>;
+    const raw = JSON.parse(this.decode(root.content)) as Partial<Surveillance>;
+    // Pre-status surveys default to 'draft' so the new flow works on legacy data.
+    const base = {
+      ...(raw as Omit<Surveillance, 'findings' | 'photos' | 'days' | 'tavole'>),
+      status: (raw.status as SurveillanceStatus) ?? 'draft',
+    };
 
     const findings: Finding[] = [];
     for (const item of await this.gh.listDir(ref, 'findings')) {
@@ -197,6 +204,18 @@ export class SurveillanceStore {
   }
 
   // ---- mutations -------------------------------------------------------
+
+  /**
+   * Promote/demote a surveillance through its lifecycle without touching
+   * the rest of the document. Persists both the surveillance.json status
+   * field and the matching entry in the index repo.
+   */
+  async setStatus(ref: RepoRef, status: SurveillanceStatus): Promise<Surveillance> {
+    const current = await this.loadSurveillance(ref);
+    const updated: Surveillance = { ...current, status };
+    await this.saveSurveillance(ref, updated);
+    return updated;
+  }
 
   async saveSurveillance(ref: RepoRef, s: Surveillance): Promise<void> {
     const existing = await this.gh.getFile(ref, 'surveillance.json');
@@ -362,7 +381,7 @@ export class SurveillanceStore {
       provincia: s.provincia ?? null,
       start_date: s.start_date ?? null,
       end_date: s.end_date ?? null,
-      status: 'draft',
+      status: s.status ?? 'draft',
       bbox: this.bboxOfArea(s.area),
       repo_url: repoUrl,
       repo: ref,

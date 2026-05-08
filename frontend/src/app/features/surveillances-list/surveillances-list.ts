@@ -6,6 +6,8 @@ import { GitHubAuthService } from '../../core/github/auth.service';
 import { IndexRepoService } from '../../core/storage/index-repo';
 import { SurveillanceIndexEntry } from '../../core/types/surveillance';
 
+type RegistryFilter = 'active' | 'archived' | 'all';
+
 const STATUS_LABELS: Record<SurveillanceIndexEntry['status'], string> = {
   draft: 'bozza',
   'in-progress': 'in lavorazione',
@@ -28,7 +30,19 @@ export class SurveillancesList {
   readonly items = signal<SurveillanceIndexEntry[]>([]);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
-  readonly hasItems = computed(() => this.items().length > 0);
+
+  readonly filter = signal<RegistryFilter>('active');
+  readonly visibleItems = computed<SurveillanceIndexEntry[]>(() => {
+    const all = this.items();
+    switch (this.filter()) {
+      case 'all': return all;
+      case 'archived': return all.filter((s) => s.status === 'archived');
+      case 'active': return all.filter((s) => s.status !== 'archived');
+    }
+  });
+  readonly archivedCount = computed(() => this.items().filter((s) => s.status === 'archived').length);
+  readonly activeCount = computed(() => this.items().filter((s) => s.status !== 'archived').length);
+  readonly hasItems = computed(() => this.visibleItems().length > 0);
 
   constructor() {
     this.refresh();
@@ -50,6 +64,10 @@ export class SurveillancesList {
   signOut(): void {
     this.auth.logout();
     this.router.navigate(['/login']);
+  }
+
+  setFilter(f: RegistryFilter): void {
+    this.filter.set(f);
   }
 
   formatNumber(n: number): string {

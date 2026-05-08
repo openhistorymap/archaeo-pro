@@ -8,7 +8,7 @@ import { PhotoThumb } from '../../core/components/photo-thumb';
 import { GitHubClient, RepoRef } from '../../core/github/client';
 import { IndexRepoService } from '../../core/storage/index-repo';
 import { SurveillanceStore } from '../../core/storage/surveillance-store';
-import { Surveillance } from '../../core/types/surveillance';
+import { Surveillance, SurveillanceStatus } from '../../core/types/surveillance';
 
 @Component({
   selector: 'app-surveillance-detail',
@@ -212,6 +212,30 @@ export class SurveillanceDetail {
   todayISO(): string {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  statusLabel(status: SurveillanceStatus): string {
+    switch (status) {
+      case 'draft': return 'bozza';
+      case 'in-progress': return 'in lavorazione';
+      case 'submitted': return 'consegnata';
+      case 'archived': return 'archiviata';
+    }
+  }
+
+  async transitionStatus(next: SurveillanceStatus): Promise<void> {
+    const ref = this.ref();
+    if (!ref || this.busy()) return;
+    this.busy.set(true);
+    this.error.set(null);
+    try {
+      const updated = await this.store.setStatus(ref, next);
+      this.surveillance.set(updated);
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : String(err));
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   openDay(date: string): void {
