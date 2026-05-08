@@ -106,6 +106,9 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
 
   readonly wmsSources = signal<WmsSource[]>([]);
   readonly enabledSources = signal<Set<string>>(new Set());
+  /** Per-source raster-opacity in [0,1]. Persists across enable/disable. */
+  readonly sourceOpacity = signal<Map<string, number>>(new Map());
+  static readonly DEFAULT_OPACITY = 0.7;
   readonly mode = signal<Mode>('view');
   readonly drawingPoints = signal<[number, number][]>([]);
   readonly pendingFinding = signal<[number, number] | null>(null);
@@ -308,18 +311,20 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
       if (this.map.getLayer(id)) this.map.removeLayer(id);
       if (this.map.getSource(id)) this.map.removeSource(id);
       next.delete(source.id);
-      // Clear any prior failure flag for this source.
+      // Clear any prior failure flag for this source. Opacity setting
+      // is preserved so re-enabling restores the user's value.
       const failures = new Set(this.tileFailures());
       failures.delete(source.id);
       this.tileFailures.set(failures);
     } else {
+      const opacity = this.getOpacity(source);
       this.map.addSource(id, {
         type: 'raster',
         tiles: [this.api.wmsTileUrl(source.id, source.default_layers)],
         tileSize: 256,
       });
       const before = this.map.getLayer('area-fill') ? 'area-fill' : undefined;
-      this.map.addLayer({ id, type: 'raster', source: id, paint: { 'raster-opacity': 0.7 } }, before);
+      this.map.addLayer({ id, type: 'raster', source: id, paint: { 'raster-opacity': opacity } }, before);
       next.add(source.id);
     }
     this.enabledSources.set(next);
@@ -327,6 +332,29 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
 
   isFailing(source: WmsSource): boolean {
     return this.tileFailures().has(source.id);
+  }
+
+  getOpacity(source: WmsSource): number {
+    return this.sourceOpacity().get(source.id) ?? SurveillanceMap.DEFAULT_OPACITY;
+  }
+
+  /** Read a number from a range input event without sprinkling `as any` */
+  setOpacityFromInput(source: WmsSource, evt: Event): void {
+    const target = evt.target as HTMLInputElement;
+    const v = Number.parseFloat(target.value);
+    if (Number.isNaN(v)) return;
+    this.setOpacity(source, Math.max(0, Math.min(1, v)));
+  }
+
+  setOpacity(source: WmsSource, opacity: number): void {
+    const next = new Map(this.sourceOpacity());
+    next.set(source.id, opacity);
+    this.sourceOpacity.set(next);
+    if (!this.map) return;
+    const layerId = `wms-${source.id}`;
+    if (this.map.getLayer(layerId)) {
+      this.map.setPaintProperty(layerId, 'raster-opacity', opacity);
+    }
   }
 
   isEnabled(source: WmsSource): boolean {

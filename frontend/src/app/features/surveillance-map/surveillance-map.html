@@ -68,6 +68,16 @@
                     <span class="layer__warn" title="Tile non caricabile dall'upstream — controlla URL/livello su Vercel">!</span>
                   }
                 </label>
+                @if (isEnabled(s)) {
+                  <div class="layer__opacity">
+                    <span class="layer__opacity-glyph" aria-hidden="true">◐</span>
+                    <input type="range" min="0" max="1" step="0.05"
+                           [value]="getOpacity(s)"
+                           [attr.aria-label]="'Opacità ' + s.label"
+                           (input)="setOpacityFromInput(s, $event)" />
+                    <span class="layer__opacity-value tabular">{{ (getOpacity(s) * 100) | number:'1.0-0' }}%</span>
+                  </div>
+                }
               </li>
             }
           </ul>
