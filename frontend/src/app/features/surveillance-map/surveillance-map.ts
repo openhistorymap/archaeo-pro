@@ -365,11 +365,15 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
         canvas.toBlob((b) => resolve(b), 'image/png'),
       );
       if (!blob) throw new Error('Cattura fallita: il browser non ha restituito l’immagine.');
+      // Subsequent exports overwrite the same path; GitHub requires the
+      // existing blob's SHA on update or it returns 422.
+      const existing = await this.gh.getFile(ref, 'exports/map.png');
       await this.gh.putBinaryFile(
         ref,
         'exports/map.png',
         blob,
         `archaeo-pro: aggiorna tavola d'insieme`,
+        existing?.sha,
       );
       this.exportedAt.set(new Date().toISOString());
     } catch (err) {
