@@ -225,6 +225,15 @@
   line-height: var(--leading-snug);
 }
 
+.panel__verify {
+  display: inline-block;
+  margin-top: var(--space-xs);
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+.panel__verify:hover { text-decoration: underline; }
+
 .btn--block { width: 100%; min-height: 40px; }
 .btn--sm {
   font-size: var(--text-xs);

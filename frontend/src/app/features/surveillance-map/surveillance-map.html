@@ -118,6 +118,13 @@
           <p class="panel__note muted">
             Aggiunta <em>{{ t.kind }}</em>{{ t.caption ? ' · ' + t.caption : '' }}.
           </p>
+          @if (ref(); as r) {
+            <a class="panel__note panel__verify"
+               [href]="'https://github.com/' + r.owner + '/' + r.name + '/blob/main/' + t.path"
+               target="_blank" rel="noopener">
+              Verifica su GitHub ↗
+            </a>
+          }
         } @else {
           <p class="panel__note muted">
             Inquadra la mappa con gli strati WMS desiderati, scegli il tipo,

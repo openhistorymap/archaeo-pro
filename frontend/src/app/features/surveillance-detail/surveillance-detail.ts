@@ -9,6 +9,7 @@ import { GitHubClient, RepoRef } from '../../core/github/client';
 import { IndexRepoService } from '../../core/storage/index-repo';
 import { SurveillanceStore } from '../../core/storage/surveillance-store';
 import { Surveillance, SurveillanceStatus } from '../../core/types/surveillance';
+import { resizeSnapshot } from '../../core/utils/image-resize';
 
 @Component({
   selector: 'app-surveillance-detail',
@@ -185,7 +186,12 @@ export class SurveillanceDetail {
           if (!t.path) continue;
           try {
             const blob = await this.gh.getBinaryFile(ref, t.path, t.content_type ?? 'image/png');
-            if (blob) tavolaBlobs.set(t.id, blob);
+            if (!blob) continue;
+            // Defensively resize: legacy tavole pre-dating the save-time
+            // shrink can be 5+ MB each, which would blow Vercel's multipart
+            // body cap before the render even starts.
+            const compact = await resizeSnapshot(blob, { maxDim: 2000, quality: 0.85 });
+            tavolaBlobs.set(t.id, compact);
           } catch {
             // skip — render will surface "[tavola non trasmessa]"
           }

@@ -24,6 +24,7 @@ import { GitHubClient, RepoRef } from '../../core/github/client';
 import { IndexRepoService } from '../../core/storage/index-repo';
 import { SurveillanceStore } from '../../core/storage/surveillance-store';
 import { Finding, Surveillance, Tavola } from '../../core/types/surveillance';
+import { resizeSnapshot } from '../../core/utils/image-resize';
 
 type Mode = 'view' | 'draw-area' | 'add-finding';
 
@@ -391,13 +392,10 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
     this.exporting.set(true);
     this.error.set(null);
     try {
-      this.map.triggerRepaint();
-      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-      const canvas = this.map.getCanvas();
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob((b) => resolve(b), 'image/png'),
-      );
-      if (!blob) throw new Error('Cattura fallita: il browser non ha restituito l’immagine.');
+      const raw = await this.captureMapAsPng();
+      // Compress before commit — full-res Retina map PNGs sit at 3-6 MB and
+      // bloat both the survey repo and the multipart upload to Vercel.
+      const blob = await resizeSnapshot(raw, { maxDim: 2000, quality: 0.85 });
 
       const v = this.tavolaForm.getRawValue();
       const center = this.map.getCenter();
@@ -423,6 +421,62 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
     } finally {
       this.exporting.set(false);
     }
+  }
+
+  /**
+   * Capture the rendered map as a PNG Blob.
+   *
+   * - Waits for MapLibre's `idle` event so all tile loads + the next paint
+   *   are flushed (a plain RAF was firing before WebGL had finished the
+   *   render, producing empty/transparent PNGs that got rejected by
+   *   GitHub or appeared as 0-byte uploads).
+   * - Falls back to toDataURL when toBlob returns null (some WebGL paths
+   *   return null instead of throwing on tainted/empty canvases).
+   * - Throws clearly on canvas-size 0 or zero-byte blob so the dialog's
+   *   error path surfaces something the user can act on.
+   */
+  private async captureMapAsPng(): Promise<Blob> {
+    if (!this.map) throw new Error('Mappa non inizializzata.');
+    const map = this.map;
+
+    await new Promise<void>((resolve) => {
+      const timeoutId = window.setTimeout(() => resolve(), 4000);
+      map.once('idle', () => {
+        window.clearTimeout(timeoutId);
+        resolve();
+      });
+      map.triggerRepaint();
+    });
+
+    const canvas = map.getCanvas();
+    if (!canvas.width || !canvas.height) {
+      throw new Error(`Canvas vuoto (${canvas.width}×${canvas.height}). Ricarica la mappa e riprova.`);
+    }
+
+    let blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob((b) => resolve(b), 'image/png'),
+    );
+
+    if (!blob || blob.size === 0) {
+      // Fallback for WebGL contexts where toBlob silently returns null.
+      try {
+        const dataUrl = canvas.toDataURL('image/png');
+        if (!dataUrl.startsWith('data:image/png')) {
+          throw new Error(`toDataURL returned ${dataUrl.slice(0, 40)}…`);
+        }
+        const res = await fetch(dataUrl);
+        blob = await res.blob();
+      } catch (e) {
+        throw new Error(
+          `Cattura fallita: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    }
+
+    if (!blob || blob.size === 0) {
+      throw new Error('Cattura fallita: il browser ha restituito un’immagine vuota.');
+    }
+    return blob;
   }
 
   // ---- adding a finding -----------------------------------------------
