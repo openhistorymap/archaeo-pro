@@ -22,23 +22,12 @@ class Settings(BaseSettings):
     # it on /login/oauth/access_token (PKCE alone is GitHub-Apps-only).
     github_client_secret: str | None = None
 
-    # WMS upstream URLs. **These are best-effort defaults** — Italian
-    # cultural-heritage and geology services move and rename frequently,
-    # and some block third-party data-centre IP ranges (Vercel included).
-    # Override per-environment via Vercel env vars:
-    #   WMS_VINCOLI_URL, WMS_ISPRA_URL, WMS_PCN_URL,
-    #   WMS_VINCOLI_LAYER, WMS_ISPRA_LAYER, WMS_PCN_LAYER
-    wms_vincoli_url: str = "https://vincoliinrete.beniculturali.it/VincoliInRete/services/Wms"
-    wms_vincoli_layer: str = "vir:vincoli_archeologici"
-
-    wms_ispra_url: str = "https://sgi2.isprambiente.it/arcgis/services/Geologia/Carta_geologica_ITA/MapServer/WMSServer"
-    wms_ispra_layer: str = "0"
-
-    # PCN's MapServer needs the `?map=` parameter pointing at a specific
-    # mapfile. We bake the AGEA 2012 ortho default; override to use a
-    # different period/area.
-    wms_pcn_url: str = "http://wms.pcn.minambiente.it/ogc?map=/ms_ofs/Ortofoto/Ortofoto_AGEA_2012.map"
-    wms_pcn_layer: str = "OI.ORTOIMMAGINI.2012"
+    # The WMS source catalog is hardcoded in app/services/wms.py and points
+    # at PCN-Geoportale (gn.mase.gov.it) per-product mapfiles. The unified
+    # `catalogo.map` advertises every layer in GetCapabilities but its
+    # mapfile has no top-level projection — GetMap fails with InvalidSRS.
+    # Each per-product .map file works correctly with EPSG:3857. To add or
+    # change sources, edit services/wms.py.
 
     @property
     def cors_origin_list(self) -> list[str]:
