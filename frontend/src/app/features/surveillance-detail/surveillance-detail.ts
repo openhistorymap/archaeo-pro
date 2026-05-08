@@ -8,7 +8,7 @@ import { PhotoThumb } from '../../core/components/photo-thumb';
 import { GitHubClient, RepoRef } from '../../core/github/client';
 import { IndexRepoService } from '../../core/storage/index-repo';
 import { SurveillanceStore } from '../../core/storage/surveillance-store';
-import { Surveillance, SurveillanceStatus } from '../../core/types/surveillance';
+import { Photo, Surveillance, SurveillanceStatus, Tavola } from '../../core/types/surveillance';
 import { resizeSnapshot } from '../../core/utils/image-resize';
 
 @Component({
@@ -226,6 +226,44 @@ export class SurveillanceDetail {
       case 'in-progress': return 'in lavorazione';
       case 'submitted': return 'consegnata';
       case 'archived': return 'archiviata';
+    }
+  }
+
+  async deletePhoto(p: Photo): Promise<void> {
+    const ref = this.ref();
+    if (!ref || this.busy()) return;
+    if (!confirm(`Eliminare la foto «${p.filename ?? p.id}»? Il file resta nella cronologia git ma non comparirà più nella relazione.`)) return;
+    this.busy.set(true);
+    this.error.set(null);
+    try {
+      await this.store.deletePhoto(ref, p);
+      const current = this.surveillance();
+      if (current) {
+        this.surveillance.set({ ...current, photos: current.photos.filter((x) => x.id !== p.id) });
+      }
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : String(err));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  async deleteTavola(t: Tavola): Promise<void> {
+    const ref = this.ref();
+    if (!ref || this.busy()) return;
+    if (!confirm(`Eliminare la tavola «${t.caption || t.filename || t.kind}»? Il file resta nella cronologia git ma non comparirà più nella relazione.`)) return;
+    this.busy.set(true);
+    this.error.set(null);
+    try {
+      await this.store.deleteTavola(ref, t);
+      const current = this.surveillance();
+      if (current) {
+        this.surveillance.set({ ...current, tavole: current.tavole.filter((x) => x.id !== t.id) });
+      }
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : String(err));
+    } finally {
+      this.busy.set(false);
     }
   }
 

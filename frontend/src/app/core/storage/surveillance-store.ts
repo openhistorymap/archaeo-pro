@@ -325,6 +325,59 @@ export class SurveillanceStore {
     return tavola;
   }
 
+  /**
+   * Remove a photo: deletes both the binary at photos/<id>.<ext> and the
+   * metadata sidecar photos/<id>.json. Each is a separate commit on GitHub
+   * because the Contents API doesn't support multi-file deletes.
+   */
+  async deletePhoto(ref: RepoRef, photo: Photo): Promise<void> {
+    if (photo.path) {
+      const f = await this.gh.getFile(ref, photo.path);
+      if (f) {
+        await this.gh.deleteFile(
+          ref,
+          photo.path,
+          f.sha,
+          `archaeo-pro: rimuovi foto ${photo.filename ?? photo.id}`,
+        );
+      }
+    }
+    const jsonPath = `photos/${photo.id}.json`;
+    const j = await this.gh.getFile(ref, jsonPath);
+    if (j) {
+      await this.gh.deleteFile(
+        ref,
+        jsonPath,
+        j.sha,
+        `archaeo-pro: rimuovi metadata foto ${photo.id}`,
+      );
+    }
+  }
+
+  async deleteTavola(ref: RepoRef, tavola: Tavola): Promise<void> {
+    if (tavola.path) {
+      const f = await this.gh.getFile(ref, tavola.path);
+      if (f) {
+        await this.gh.deleteFile(
+          ref,
+          tavola.path,
+          f.sha,
+          `archaeo-pro: rimuovi tavola ${tavola.kind}`,
+        );
+      }
+    }
+    const jsonPath = `tavole/${tavola.id}.json`;
+    const j = await this.gh.getFile(ref, jsonPath);
+    if (j) {
+      await this.gh.deleteFile(
+        ref,
+        jsonPath,
+        j.sha,
+        `archaeo-pro: rimuovi metadata tavola ${tavola.id}`,
+      );
+    }
+  }
+
   // ---- giornale di scavo ----------------------------------------------
 
   async saveDay(ref: RepoRef, day: DayLog): Promise<DayLog> {

@@ -260,7 +260,36 @@ textarea {
   gap: var(--space-md);
 }
 .photos__item { display: grid; gap: var(--space-2xs); }
+.photos__thumb { position: relative; border-radius: var(--radius-md); overflow: hidden; }
 .photos__cap { font-size: var(--text-xs); margin: 0; line-height: var(--leading-snug); }
+
+.thumb-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  min-height: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: oklch(0.18 0.02 50 / 0.65);
+  color: oklch(0.97 0.012 80);
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: 0;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--transition-quick), background var(--transition-quick);
+}
+.thumb-delete:hover { background: var(--accent); }
+.photos__thumb:hover .thumb-delete,
+.thumb-delete:focus-visible { opacity: 1; }
+.thumb-delete[disabled] { opacity: 0.4; cursor: progress; }
+
+@media (hover: none) {
+  .thumb-delete { opacity: 0.85; }
+}
 
 .upload { display: inline-block; }
 

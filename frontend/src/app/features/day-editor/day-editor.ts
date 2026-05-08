@@ -15,6 +15,7 @@ import { RepoRef } from '../../core/github/client';
 import { IndexRepoService } from '../../core/storage/index-repo';
 import { SurveillanceStore } from '../../core/storage/surveillance-store';
 import { DayLog, Finding, Photo, Presence, Surveillance } from '../../core/types/surveillance';
+// (Photo deletion handler is defined inline below.)
 
 const ROLE_OPTIONS = [
   { value: '', label: '— ruolo —' },
@@ -234,6 +235,25 @@ export class DayEditor {
 
   goToMap(): void {
     void this.router.navigate(['/surveillances', this.surveillanceId(), 'map']);
+  }
+
+  async deletePhoto(p: Photo): Promise<void> {
+    const ref = this.ref();
+    if (!ref || this.busy()) return;
+    if (!confirm(`Eliminare la foto «${p.filename ?? p.id}»? Il file resta nella cronologia git ma non comparirà più nella relazione.`)) return;
+    this.busy.set(true);
+    this.error.set(null);
+    try {
+      await this.store.deletePhoto(ref, p);
+      const current = this.surveillance();
+      if (current) {
+        this.surveillance.set({ ...current, photos: current.photos.filter((x) => x.id !== p.id) });
+      }
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : String(err));
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   formatDate(iso: string): string {

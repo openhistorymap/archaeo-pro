@@ -251,7 +251,17 @@
         <ul class="photos">
           @for (t of s.tavole; track t.id) {
             <li class="photos__item">
-              <app-photo-thumb [photo]="t" [repo]="ref()!" />
+              <div class="photos__thumb">
+                <app-photo-thumb [photo]="t" [repo]="ref()!" />
+                <button type="button" class="thumb-delete" [disabled]="busy()"
+                        (click)="deleteTavola(t)"
+                        aria-label="Elimina tavola">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+                       stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+                    <path d="M3 3l8 8M11 3l-8 8" />
+                  </svg>
+                </button>
+              </div>
               <p class="photos__cap muted">
                 <em>{{ t.kind }}</em>{{ t.caption ? ' · ' + t.caption : '' }}
               </p>
@@ -285,7 +295,17 @@
         <ul class="photos">
           @for (p of s.photos; track p.id) {
             <li class="photos__item">
-              <app-photo-thumb [photo]="p" [repo]="ref()!" />
+              <div class="photos__thumb">
+                <app-photo-thumb [photo]="p" [repo]="ref()!" />
+                <button type="button" class="thumb-delete" [disabled]="busy()"
+                        (click)="deletePhoto(p)"
+                        aria-label="Elimina foto">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+                       stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+                    <path d="M3 3l8 8M11 3l-8 8" />
+                  </svg>
+                </button>
+              </div>
               <p class="photos__cap muted">{{ p.caption || p.filename }}</p>
             </li>
           }
