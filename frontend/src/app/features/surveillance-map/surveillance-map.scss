@@ -402,6 +402,55 @@
   border-top: 1px solid var(--rule);
 }
 
+.ff__hint {
+  font-size: var(--text-xs);
+  margin: 0;
+  line-height: var(--leading-snug);
+}
+
+/* --- Kind picker (tavola export) ----------------------------------- */
+
+.kind-pick {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2xs);
+}
+.kind-pick__opt {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--transition-quick), background var(--transition-quick);
+}
+.kind-pick__opt input { grid-row: 1 / span 2; align-self: center; min-height: 0; }
+.kind-pick__label {
+  grid-column: 2;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 500;
+  font-size: var(--text-md);
+}
+.kind-pick__hint {
+  grid-column: 2;
+  font-size: var(--text-xs);
+  color: var(--text-soft);
+  line-height: var(--leading-snug);
+}
+.kind-pick__opt--active {
+  border-color: var(--accent);
+  background: var(--accent-quiet);
+}
+.kind-pick__opt:hover:not(.kind-pick__opt--active) {
+  border-color: var(--rule-strong);
+  background: var(--surface-warm);
+}
+
 /* --- Layers list ---------------------------------------------------- */
 
 .layers {

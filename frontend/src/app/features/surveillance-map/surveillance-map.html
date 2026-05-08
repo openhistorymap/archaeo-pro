@@ -104,21 +104,24 @@
       </section>
 
       <section class="panel__block">
-        <h3 class="panel__heading">Tavola d’insieme</h3>
+        <h3 class="panel__heading">Tavole grafiche</h3>
+        <p class="panel__count">
+          <span class="tabular">{{ surveillance()?.tavole?.length || 0 }}</span>
+          <span class="muted">in archivio</span>
+        </p>
         <button type="button" class="btn btn--ghost btn--block"
                 [disabled]="exporting() || mode() !== 'view'"
-                (click)="exportMapImage()">
-          @if (exporting()) { Cattura in corso… } @else { Esporta come immagine }
+                (click)="openTavolaDialog()">
+          + Esporta come tavola
         </button>
-        @if (exportedAt()) {
+        @if (lastTavola(); as t) {
           <p class="panel__note muted">
-            Salvata <span class="tabular">{{ exportedAt() | date:'HH:mm' }}</span>.
-            Verrà inclusa nel prossimo DOCX/PDF.
+            Aggiunta <em>{{ t.kind }}</em>{{ t.caption ? ' · ' + t.caption : '' }}.
           </p>
         } @else {
           <p class="panel__note muted">
-            La cattura include la base, gli strati WMS attivi e l’area sorvegliata.
-            Inquadra la mappa come la vuoi nella relazione, poi esporta.
+            Inquadra la mappa con gli strati WMS desiderati, scegli il tipo,
+            e ogni esportazione diventa una tavola dedicata nella relazione.
           </p>
         }
       </section>
@@ -149,6 +152,67 @@
       </section>
     </div>
   </aside>
+
+  @if (tavolaDialogOpen()) {
+    <div class="evidence-dialog" role="dialog" aria-modal="true" aria-labelledby="tavola-title">
+      <div class="evidence-dialog__scrim" (click)="closeTavolaDialog()" aria-hidden="true"></div>
+      <article class="evidence-dialog__card">
+        <header class="evidence-dialog__head">
+          <p class="evidence-dialog__eyebrow">nuova tavola</p>
+          <h2 id="tavola-title" class="evidence-dialog__title">Esporta cartografia</h2>
+          <button type="button" class="evidence-dialog__close" (click)="closeTavolaDialog()" aria-label="Chiudi">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path d="M3 3l8 8M11 3l-8 8"/>
+            </svg>
+          </button>
+        </header>
+
+        <form class="finding-form" [formGroup]="tavolaForm" (ngSubmit)="saveTavola()">
+          <fieldset class="kind-pick" aria-label="Tipo di tavola">
+            @for (k of tavolaKinds; track k.value) {
+              <label class="kind-pick__opt" [class.kind-pick__opt--active]="tavolaForm.value.kind === k.value">
+                <input type="radio" formControlName="kind" [value]="k.value" />
+                <span class="kind-pick__label">{{ k.label }}</span>
+                <span class="kind-pick__hint">{{ k.hint }}</span>
+              </label>
+            }
+          </fieldset>
+
+          @if (tavolaForm.value.kind === 'dettaglio') {
+            <label class="ff__field">
+              <span class="ff__label">Evidenza di riferimento</span>
+              <select formControlName="finding_id">
+                <option [ngValue]="null">— nessuna selezionata —</option>
+                @for (f of surveillance()?.findings; track f.id) {
+                  <option [value]="f.id">{{ f.name }}</option>
+                }
+              </select>
+            </label>
+          }
+
+          <label class="ff__field">
+            <span class="ff__label">Didascalia</span>
+            <input type="text" formControlName="caption"
+                   placeholder="es. Inquadramento generale su ortofoto AGEA 2012, scala 1:5.000" />
+          </label>
+
+          <p class="ff__hint muted">
+            La cattura comprende la base attualmente visibile, gli strati WMS attivi,
+            l’area sorvegliata e le evidenze. Inquadra prima di salvare.
+          </p>
+
+          <div class="ff__actions">
+            <button type="button" class="btn btn--quiet" [disabled]="exporting()" (click)="closeTavolaDialog()">
+              Annulla
+            </button>
+            <button type="submit" class="btn btn--primary" [disabled]="exporting()">
+              @if (exporting()) { Cattura in corso… } @else { Salva tavola }
+            </button>
+          </div>
+        </form>
+      </article>
+    </div>
+  }
 
   @if (mode() === 'add-finding' && pendingFinding()) {
     <div class="evidence-dialog" role="dialog" aria-modal="true" aria-labelledby="evidence-title">

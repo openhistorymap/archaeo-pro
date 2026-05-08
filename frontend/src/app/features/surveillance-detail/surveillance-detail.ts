@@ -169,6 +169,7 @@ export class SurveillanceDetail {
       }
       const ref = this.ref();
       const photoBlobs = new Map<string, Blob>();
+      const tavolaBlobs = new Map<string, Blob>();
       let mapImage: Blob | null = null;
       if (ref) {
         for (const p of s.photos) {
@@ -180,8 +181,17 @@ export class SurveillanceDetail {
             // skip — render will surface "[immagine non trasmessa]"
           }
         }
-        // Optional tavola d'insieme: included only if the user has exported one
-        // from the map page.
+        for (const t of s.tavole) {
+          if (!t.path) continue;
+          try {
+            const blob = await this.gh.getBinaryFile(ref, t.path, t.content_type ?? 'image/png');
+            if (blob) tavolaBlobs.set(t.id, blob);
+          } catch {
+            // skip — render will surface "[tavola non trasmessa]"
+          }
+        }
+        // Legacy fallback: a pre-Tavola survey may still have exports/map.png.
+        // Only used by the docgen when no Tavola(kind='insieme') exists.
         try {
           mapImage = await this.gh.getBinaryFile(ref, 'exports/map.png', 'image/png');
         } catch {
@@ -189,8 +199,8 @@ export class SurveillanceDetail {
         }
       }
       const blob = kind === 'docx'
-        ? await this.api.renderDocx(s, photoBlobs, mapImage)
-        : await this.api.renderPdf(s, photoBlobs, mapImage);
+        ? await this.api.renderDocx(s, photoBlobs, tavolaBlobs, mapImage)
+        : await this.api.renderPdf(s, photoBlobs, tavolaBlobs, mapImage);
       this.downloadBlob(blob, `sorveglianza-${s.id}.${kind}`);
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : String(err));

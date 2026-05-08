@@ -49,16 +49,31 @@ async def _read_map_image(map_image: UploadFile | None) -> bytes | None:
     return raw
 
 
+async def _collect_tavole(uploads: list[UploadFile]) -> dict[str, bytes]:
+    """Same shape as _collect_photos: filename = tavola id."""
+    out: dict[str, bytes] = {}
+    for up in uploads:
+        if not up.filename:
+            continue
+        raw = await up.read()
+        if len(raw) > MAX_PHOTO_BYTES:
+            raise HTTPException(status_code=413, detail=f"Tavola '{up.filename}' too large")
+        out[up.filename] = raw
+    return out
+
+
 @router.post("/docx")
 async def render_docx_endpoint(
     surveillance: str = Form(...),
     photos: list[UploadFile] = File(default_factory=list),
+    tavole: list[UploadFile] = File(default_factory=list),
     map_image: UploadFile | None = File(default=None),
 ) -> FileResponse:
     payload = _parse_payload(surveillance)
     photo_bytes = await _collect_photos(photos)
+    tavola_bytes = await _collect_tavole(tavole)
     map_bytes = await _read_map_image(map_image)
-    path = render_docx(payload, photo_bytes, map_bytes=map_bytes)
+    path = render_docx(payload, photo_bytes, map_bytes=map_bytes, tavola_bytes=tavola_bytes)
     return FileResponse(
         path,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -70,12 +85,14 @@ async def render_docx_endpoint(
 async def render_pdf_endpoint(
     surveillance: str = Form(...),
     photos: list[UploadFile] = File(default_factory=list),
+    tavole: list[UploadFile] = File(default_factory=list),
     map_image: UploadFile | None = File(default=None),
 ) -> FileResponse:
     payload = _parse_payload(surveillance)
     photo_bytes = await _collect_photos(photos)
+    tavola_bytes = await _collect_tavole(tavole)
     map_bytes = await _read_map_image(map_image)
-    docx_path = render_docx(payload, photo_bytes, map_bytes=map_bytes)
+    docx_path = render_docx(payload, photo_bytes, map_bytes=map_bytes, tavola_bytes=tavola_bytes)
     try:
         pdf_path = await docx_to_pdf(docx_path)
     except PdfConversionError as exc:

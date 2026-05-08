@@ -26,7 +26,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Cm, Pt, RGBColor
 
 from app.config import settings
-from app.payloads import DayLogPayload, PresencePayload, SurveillancePayload
+from app.payloads import DayLogPayload, PresencePayload, SurveillancePayload, TavolaPayload
 
 
 _ITALIAN_MONTHS = [
@@ -106,10 +106,15 @@ def render_docx(
     s: SurveillancePayload,
     photos: dict[str, bytes],
     map_bytes: bytes | None = None,
+    tavola_bytes: dict[str, bytes] | None = None,
 ) -> Path:
-    """Render a Sovrintendenza DOCX. `photos` is keyed by the photo id;
-    `map_bytes`, when present, is rendered as the tavola d'insieme di
-    posizionamento topografico in section 2."""
+    """Render a Sovrintendenza DOCX.
+
+    `photos` is keyed by the photo id; `tavola_bytes` by the tavola id.
+    Tavole replace `map_bytes` for new surveys but `map_bytes` is honoured
+    as a fallback "tavola d'insieme" when no Tavola(kind='insieme') is
+    present (legacy exports/map.png path)."""
+    tavola_bytes = tavola_bytes or {}
     doc = Document()
 
     title = doc.add_heading("RELAZIONE DI SORVEGLIANZA ARCHEOLOGICA", level=0)
@@ -158,7 +163,15 @@ def render_docx(
         f"{s.comune or '—'} (provincia di {s.provincia or '—'}), foglio catastale "
         f"{s.foglio_catastale or '—'}, particelle {s.particelle or '—'}.",
     )
-    if map_bytes:
+    insieme_tavole = [t for t in s.tavole if t.kind == "insieme"]
+    storica_tavole = [t for t in s.tavole if t.kind == "storica"]
+
+    if insieme_tavole:
+        _heading(doc, "2.1 Tavola d'insieme di posizionamento topografico", level=2)
+        for t in insieme_tavole:
+            _embed_tavola(doc, t, tavola_bytes, comune=s.comune, provincia=s.provincia)
+    elif map_bytes:
+        # Legacy: pre-Tavola surveys may still have an exports/map.png.
         _heading(doc, "2.1 Tavola d'insieme di posizionamento topografico", level=2)
         try:
             doc.add_picture(BytesIO(map_bytes), width=Cm(15))
@@ -173,11 +186,15 @@ def render_docx(
     else:
         _para(
             doc,
-            "[Tavola d'insieme: usare il pulsante 'Esporta come immagine' nella "
-            "pagina mappa per allegare automaticamente la cartografia di "
-            "posizionamento topografico.]",
+            "[Tavola d'insieme: aprire la mappa e usare \"Esporta come tavola\" "
+            "per allegare la cartografia di posizionamento topografico.]",
             italic=True,
         )
+
+    if storica_tavole:
+        _heading(doc, "2.2 Cartografia storica di confronto", level=2)
+        for t in storica_tavole:
+            _embed_tavola(doc, t, tavola_bytes, comune=s.comune, provincia=s.provincia)
 
     _heading(doc, "3. Inquadramento storico-archeologico")
     _para(
@@ -223,6 +240,10 @@ def render_docx(
                         f"US {u.number} ({u.type or '—'}): "
                         f"{u.definition or '—'} — {u.description or ''}",
                     )
+            # Detail tavole pinned to this finding.
+            for t in s.tavole:
+                if t.kind == "dettaglio" and t.finding_id == f.id:
+                    _embed_tavola(doc, t, tavola_bytes, comune=s.comune, provincia=s.provincia)
 
     _heading(doc, "8. Documentazione fotografica")
     if s.photos:
@@ -249,6 +270,45 @@ def render_docx(
     out_path = out_dir / "sorveglianza.docx"
     doc.save(out_path)
     return out_path
+
+
+def _embed_tavola(
+    doc,
+    tavola: TavolaPayload,
+    tavola_bytes: dict[str, bytes],
+    *,
+    comune: str | None,
+    provincia: str | None,
+) -> None:
+    """Embed a single Tavola image with a centred italic caption."""
+    blob = tavola_bytes.get(tavola.id)
+    if blob is None:
+        _para(doc, f"[Tavola «{tavola.filename}» non trasmessa.]", italic=True)
+        return
+    try:
+        doc.add_picture(BytesIO(blob), width=Cm(15))
+    except Exception:
+        _para(doc, f"[Tavola «{tavola.filename}» non leggibile.]", italic=True)
+        return
+
+    place = comune or "—"
+    if provincia:
+        place = f"{place}, {provincia}"
+    base = tavola.caption or _default_tavola_caption(tavola.kind, place)
+    cap = doc.add_paragraph(base)
+    cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    cap.runs[0].italic = True
+    cap.runs[0].font.size = Pt(10)
+
+
+def _default_tavola_caption(kind: str, place: str) -> str:
+    if kind == "insieme":
+        return f"Tavola d'insieme · {place}"
+    if kind == "storica":
+        return f"Cartografia storica · {place}"
+    if kind == "dettaglio":
+        return f"Tavola di dettaglio · {place}"
+    return place
 
 
 def _render_giornale(doc, s: SurveillancePayload) -> None:

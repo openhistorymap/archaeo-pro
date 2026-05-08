@@ -20,6 +20,7 @@ import {
   StratigraphicUnit,
   Surveillance,
   SurveillanceIndexEntry,
+  Tavola,
 } from '../types/surveillance';
 import { GitHubAuthService } from '../github/auth.service';
 import { GitHubClient, RepoRef } from '../github/client';
@@ -97,6 +98,7 @@ export class SurveillanceStore {
       findings: [],
       photos: [],
       days: [],
+      tavole: [],
       created_at: now,
       updated_at: now,
     };
@@ -167,7 +169,20 @@ export class SurveillanceStore {
     }
     days.sort((a, b) => (a.date < b.date ? -1 : 1));
 
-    return { ...base, findings, photos, days } as Surveillance;
+    const tavole: Tavola[] = [];
+    for (const item of await this.gh.listDir(ref, 'tavole')) {
+      if (item.type !== 'file' || !item.name.endsWith('.json')) continue;
+      const f = await this.gh.getFile(ref, item.path);
+      if (!f) continue;
+      try {
+        tavole.push(JSON.parse(this.decode(f.content)) as Tavola);
+      } catch {
+        // skip a malformed tavola
+      }
+    }
+    tavole.sort((a, b) => (a.captured_on ?? '') < (b.captured_on ?? '') ? -1 : 1);
+
+    return { ...base, findings, photos, days, tavole } as Surveillance;
   }
 
   private async loadUnits(ref: RepoRef, findingId: string): Promise<StratigraphicUnit[]> {
@@ -257,6 +272,40 @@ export class SurveillanceStore {
     return photo;
   }
 
+  // ---- tavole grafiche ------------------------------------------------
+
+  async attachTavola(
+    ref: RepoRef,
+    blob: Blob,
+    meta: Omit<Tavola, 'id' | 'path' | 'content_type' | 'filename'>,
+  ): Promise<Tavola> {
+    const id = uuidv4();
+    const ext = blob.type === 'image/jpeg' ? 'jpg' : 'png';
+    const path = `tavole/${id}.${ext}`;
+    const dateLabel = meta.captured_on ?? new Date().toISOString().slice(0, 10);
+    const filename = `tavola-${meta.kind}-${dateLabel}.${ext}`;
+    await this.gh.putBinaryFile(
+      ref,
+      path,
+      blob,
+      `archaeo-pro: aggiungi tavola ${meta.kind} (${dateLabel})`,
+    );
+    const tavola: Tavola = {
+      ...meta,
+      id,
+      filename,
+      path,
+      content_type: blob.type || 'image/png',
+    };
+    await this.gh.putFile(
+      ref,
+      `tavole/${id}.json`,
+      JSON.stringify(tavola, null, 2) + '\n',
+      `archaeo-pro: metadata tavola ${meta.kind}`,
+    );
+    return tavola;
+  }
+
   // ---- giornale di scavo ----------------------------------------------
 
   async saveDay(ref: RepoRef, day: DayLog): Promise<DayLog> {
@@ -300,8 +349,8 @@ export class SurveillanceStore {
     return entry.repo;
   }
 
-  private toRoot(s: Surveillance): Omit<Surveillance, 'findings' | 'photos' | 'days'> {
-    const { findings: _f, photos: _p, days: _d, ...root } = s;
+  private toRoot(s: Surveillance): Omit<Surveillance, 'findings' | 'photos' | 'days' | 'tavole'> {
+    const { findings: _f, photos: _p, days: _d, tavole: _t, ...root } = s;
     return root;
   }
 

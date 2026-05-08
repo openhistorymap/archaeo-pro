@@ -1,12 +1,22 @@
 import { Component, OnDestroy, OnInit, computed, inject, input, signal } from '@angular/core';
 
 import { GitHubClient, RepoRef } from '../github/client';
-import { Photo } from '../types/surveillance';
 
 /**
- * Renders a photo thumbnail by fetching the binary from a GitHub Release
- * asset (with the user's token) and serving it via a blob URL. Cleans up
- * the URL on destroy.
+ * Anything that has a binary path in a surveillance repo plus a content
+ * type — both Photo and Tavola structurally satisfy this.
+ */
+export interface Thumbable {
+  path: string;
+  content_type?: string | null;
+  caption?: string | null;
+  filename?: string | null;
+}
+
+/**
+ * Renders a thumbnail by fetching the binary at `photo.path` from the
+ * given repo (with the user's token) and serving it via a blob URL.
+ * Cleans up the URL on destroy.
  */
 @Component({
   selector: 'app-photo-thumb',
@@ -65,7 +75,7 @@ import { Photo } from '../types/surveillance';
 export class PhotoThumb implements OnInit, OnDestroy {
   private readonly gh = inject(GitHubClient);
 
-  readonly photo = input.required<Photo>();
+  readonly photo = input.required<Thumbable>();
   readonly repo = input.required<RepoRef>();
   readonly alt = computed(() => this.photo().caption ?? this.photo().filename ?? 'fotografia');
 

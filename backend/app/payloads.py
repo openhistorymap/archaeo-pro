@@ -62,6 +62,18 @@ class DayLogPayload(BaseModel):
     notes: str | None = None
 
 
+class TavolaPayload(BaseModel):
+    """A rendered map snapshot (tavola grafica). The bytes arrive as a
+    multipart upload whose filename matches the tavola id."""
+
+    id: str
+    filename: str
+    caption: str | None = None
+    captured_on: str | None = None
+    kind: str  # "insieme" | "dettaglio" | "storica"
+    finding_id: str | None = None
+
+
 class SurveillancePayload(BaseModel):
     """Render-ready snapshot of a surveillance. Mirrors the JSON files stored
     in the per-surveillance GitHub repo, flattened into one document."""
@@ -88,3 +100,4 @@ class SurveillancePayload(BaseModel):
     findings: list[FindingPayload] = Field(default_factory=list)
     photos: list[PhotoPayload] = Field(default_factory=list)
     days: list[DayLogPayload] = Field(default_factory=list)
+    tavole: list[TavolaPayload] = Field(default_factory=list)

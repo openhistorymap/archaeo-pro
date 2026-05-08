@@ -23,7 +23,7 @@ import { ApiService, WmsSource } from '../../core/api.service';
 import { GitHubClient, RepoRef } from '../../core/github/client';
 import { IndexRepoService } from '../../core/storage/index-repo';
 import { SurveillanceStore } from '../../core/storage/surveillance-store';
-import { Finding, Surveillance } from '../../core/types/surveillance';
+import { Finding, Surveillance, Tavola } from '../../core/types/surveillance';
 
 type Mode = 'view' | 'draw-area' | 'add-finding';
 
@@ -346,18 +346,51 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
     this.refreshDrawing();
   }
 
-  // ---- exporting the map as an image ---------------------------------
+  // ---- saving a tavola grafica ---------------------------------------
+  //
+  // Each export creates a *new* Tavola in the survey content (sibling of
+  // Photo and Finding), placed in the DOCX based on its kind. The user
+  // first chooses kind + caption + (when 'dettaglio') a finding; we then
+  // capture the canvas and call SurveillanceStore.attachTavola.
 
+  readonly tavolaDialogOpen = signal(false);
   readonly exporting = signal(false);
-  readonly exportedAt = signal<string | null>(null);
+  readonly lastTavola = signal<Tavola | null>(null);
 
-  async exportMapImage(): Promise<void> {
+  readonly tavolaForm = new FormGroup({
+    kind: new FormControl<'insieme' | 'dettaglio' | 'storica'>('insieme', { nonNullable: true }),
+    caption: new FormControl<string | null>(null),
+    finding_id: new FormControl<string | null>(null),
+  });
+
+  readonly tavolaKinds: { value: 'insieme' | 'dettaglio' | 'storica'; label: string; hint: string }[] = [
+    { value: 'insieme', label: 'Tavola d’insieme', hint: 'Posizionamento topografico generale dell’intervento.' },
+    { value: 'dettaglio', label: 'Tavola di dettaglio', hint: 'Cartografia di una singola evidenza archeologica.' },
+    { value: 'storica', label: 'Cartografia storica', hint: 'Confronto con ortofoto storica o cartografia d’epoca.' },
+  ];
+
+  openTavolaDialog(): void {
+    if (this.exporting() || this.mode() !== 'view') return;
+    this.tavolaForm.reset({ kind: 'insieme', caption: null, finding_id: null });
+    this.tavolaDialogOpen.set(true);
+    this.error.set(null);
+  }
+
+  closeTavolaDialog(): void {
+    if (this.exporting()) return;
+    this.tavolaDialogOpen.set(false);
+  }
+
+  async saveTavola(): Promise<void> {
     const ref = this.ref();
     if (!ref || !this.map || this.exporting()) return;
+    if (this.tavolaForm.invalid) {
+      this.tavolaForm.markAllAsTouched();
+      return;
+    }
     this.exporting.set(true);
     this.error.set(null);
     try {
-      // Trigger a render so the canvas reflects any pending state, then snapshot.
       this.map.triggerRepaint();
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       const canvas = this.map.getCanvas();
@@ -365,17 +398,26 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
         canvas.toBlob((b) => resolve(b), 'image/png'),
       );
       if (!blob) throw new Error('Cattura fallita: il browser non ha restituito l’immagine.');
-      // Subsequent exports overwrite the same path; GitHub requires the
-      // existing blob's SHA on update or it returns 422.
-      const existing = await this.gh.getFile(ref, 'exports/map.png');
-      await this.gh.putBinaryFile(
-        ref,
-        'exports/map.png',
-        blob,
-        `archaeo-pro: aggiorna tavola d'insieme`,
-        existing?.sha,
-      );
-      this.exportedAt.set(new Date().toISOString());
+
+      const v = this.tavolaForm.getRawValue();
+      const center = this.map.getCenter();
+      const tavola = await this.store.attachTavola(ref, blob, {
+        caption: v.caption ?? null,
+        captured_on: new Date().toISOString().slice(0, 10),
+        kind: v.kind,
+        finding_id: v.kind === 'dettaglio' ? (v.finding_id ?? null) : null,
+        map_state: {
+          center: [center.lng, center.lat],
+          zoom: Math.round(this.map.getZoom() * 100) / 100,
+          layers: Array.from(this.enabledSources()),
+        },
+      });
+      this.lastTavola.set(tavola);
+      const current = this.surveillance();
+      if (current) {
+        this.surveillance.set({ ...current, tavole: [...current.tavole, tavola] });
+      }
+      this.tavolaDialogOpen.set(false);
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : String(err));
     } finally {

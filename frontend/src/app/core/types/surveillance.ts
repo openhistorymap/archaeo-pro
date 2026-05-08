@@ -74,6 +74,7 @@ export interface Surveillance {
   findings: Finding[];
   photos: Photo[];
   days: DayLog[];
+  tavole: Tavola[];
 
   created_at: string;
   updated_at: string;
@@ -94,6 +95,40 @@ export interface Presence {
   hours_end?: string | null;     // "17:30"
   /** Total hours on site for the day. Optional manual override (covers breaks). */
   hours_total?: number | null;
+}
+
+/**
+ * A "Tavola grafica" — a rendered map snapshot saved into the surveillance.
+ * Distinct from Photo because the Sovrintendenza spec lists "Tavole grafiche"
+ * as its own deliverable and the DOCX places them in separate sections.
+ *
+ * Stored as `tavole/<id>.<ext>` (binary, usually PNG) + `tavole/<id>.json`.
+ */
+export interface Tavola {
+  id: string;
+  /** Display filename used in the GitHub UI and DOCX caption fallback. */
+  filename: string;
+  caption?: string | null;
+  /** ISO date YYYY-MM-DD when the snapshot was captured. */
+  captured_on?: string | null;
+  /**
+   * Drives DOCX placement:
+   *   insieme   → §2.1 Tavola d'insieme di posizionamento topografico
+   *   storica   → §2 historical-orto comparison
+   *   dettaglio → §7.1.X under the corresponding evidenza
+   */
+  kind: 'insieme' | 'dettaglio' | 'storica';
+  /** Required when kind === 'dettaglio'. */
+  finding_id?: string | null;
+  /** Path in the surveillance repo (tavole/<id>.png). */
+  path: string;
+  content_type?: string | null;
+  /** Map state at capture, for later reproduction. */
+  map_state?: {
+    center?: [number, number];
+    zoom?: number;
+    layers?: string[];
+  } | null;
 }
 
 export interface DayLog {

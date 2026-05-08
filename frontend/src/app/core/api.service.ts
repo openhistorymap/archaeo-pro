@@ -64,22 +64,25 @@ export class ApiService {
   async renderDocx(
     surveillance: Surveillance,
     photoBlobs: Map<string, Blob>,
+    tavolaBlobs: Map<string, Blob> = new Map(),
     mapImage?: Blob | null,
   ): Promise<Blob> {
-    return this.renderDocument(surveillance, photoBlobs, 'docx', mapImage);
+    return this.renderDocument(surveillance, photoBlobs, tavolaBlobs, 'docx', mapImage);
   }
 
   async renderPdf(
     surveillance: Surveillance,
     photoBlobs: Map<string, Blob>,
+    tavolaBlobs: Map<string, Blob> = new Map(),
     mapImage?: Blob | null,
   ): Promise<Blob> {
-    return this.renderDocument(surveillance, photoBlobs, 'pdf', mapImage);
+    return this.renderDocument(surveillance, photoBlobs, tavolaBlobs, 'pdf', mapImage);
   }
 
   private async renderDocument(
     surveillance: Surveillance,
     photoBlobs: Map<string, Blob>,
+    tavolaBlobs: Map<string, Blob>,
     kind: 'docx' | 'pdf',
     mapImage?: Blob | null,
   ): Promise<Blob> {
@@ -88,6 +91,9 @@ export class ApiService {
     for (const [id, blob] of photoBlobs) {
       // Filename equals the photo id by convention; the backend matches them.
       fd.append('photos', blob, id);
+    }
+    for (const [id, blob] of tavolaBlobs) {
+      fd.append('tavole', blob, id);
     }
     if (mapImage) {
       fd.append('map_image', mapImage, 'map.png');
