@@ -8,7 +8,13 @@ class Settings(BaseSettings):
 
     # Where transient document renders live; cleaned up by /tmp lifecycle.
     work_dir: Path = Path("/tmp/archaeo-pro")
-    cors_origins: str = "http://localhost:4200,https://archaeo.pro,https://archeo.pro"
+    # Includes the Tauri webview origins (iOS: tauri://localhost, Android:
+    # http://tauri.localhost) so the native app can reach WMS tiles, the OAuth
+    # exchange and DOCX/PDF render directly (no Netlify proxy in the shell).
+    cors_origins: str = (
+        "http://localhost:4200,https://archaeo.pro,https://archeo.pro,"
+        "tauri://localhost,http://tauri.localhost"
+    )
 
     # Gotenberg PDF microservice — runs separately (LibreOffice can't live on Vercel).
     # See pdf-service/ for deploy config; locally docker-compose brings it up.

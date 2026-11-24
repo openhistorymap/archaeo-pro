@@ -2,13 +2,18 @@ import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { GitHubAuthService } from '../../core/github/auth.service';
+import { DEEP_LINK_CALLBACK } from '../../core/platform';
 
 @Component({
   selector: 'app-auth-callback',
   imports: [RouterLink],
   template: `
     <section class="callback">
-      @if (error()) {
+      @if (appLink()) {
+        <h1>Ritorno all’app…</h1>
+        <p class="callback__msg muted">Apertura di archaeo·pro in corso.</p>
+        <a [href]="appLink()!" class="btn">Apri archaeo·pro</a>
+      } @else if (error()) {
         <h1>Accesso non riuscito</h1>
         <p class="callback__msg">{{ error() }}</p>
         <a routerLink="/login" class="btn btn--ghost">Torna al login</a>
@@ -55,6 +60,8 @@ export class AuthCallback {
   private readonly router = inject(Router);
 
   readonly error = signal<string | null>(null);
+  /** Set when this hit is the system browser returning a *native* login. */
+  readonly appLink = signal<string | null>(null);
 
   constructor() {
     const params = this.route.snapshot.queryParamMap;
@@ -69,6 +76,18 @@ export class AuthCallback {
       this.error.set('Parametri OAuth mancanti.');
       return;
     }
+
+    // Native login round-trips through the system browser; GitHub can only
+    // return to this https page. A `m.`-prefixed state means "bounce the code
+    // back into the app" via the custom scheme — this page never holds the
+    // PKCE verifier for that flow, so it must not try to exchange.
+    if (state.startsWith('m.')) {
+      const link = `${DEEP_LINK_CALLBACK}?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
+      this.appLink.set(link);
+      window.location.href = link; // auto-open; the button is the fallback
+      return;
+    }
+
     this.auth
       .completeLogin(code, state)
       .then((returnTo) => this.router.navigateByUrl(returnTo))

@@ -16,6 +16,12 @@ top-level pointers to the rest of the project.
   with CORS.
 - **Auth**: GitHub OAuth via PKCE, token relayed once through `/auth/github/exchange`
   (CORS-blocked from browsers) and then held client-side only.
+- **Native app (iOS/Android)**: Tauri 2 shell in `frontend/src-tauri/` wrapping
+  the *same* Angular build (`isTauri()` in `core/platform.ts` switches API base +
+  OAuth at runtime — one build serves web and native). Mobile login is a
+  system-browser + `archaeopro://` deep-link bounce; GPS via
+  tauri-plugin-geolocation bridged onto `navigator.geolocation`. See
+  `docs/mobile.md`. Build needs Rust ≥1.77 + Node ≥20 (this dev box is too old).
 
 ## Design Context
 

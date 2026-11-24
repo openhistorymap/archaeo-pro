@@ -13,10 +13,24 @@
 import { Injectable, signal } from '@angular/core';
 
 import { environment } from '../../../environments/environment';
+import { apiBase, isTauri, oauthRedirectUri } from '../platform';
 
 const TOKEN_KEY = 'gh.token.v1';
 const VERIFIER_KEY = 'gh.pkce.verifier';
 const STATE_KEY = 'gh.pkce.state';
+const RETURN_KEY = 'gh.return_to';
+
+/** Marker prefix on `state` so the web callback page knows to bounce into the app. */
+const MOBILE_STATE_PREFIX = 'm.';
+
+/**
+ * PKCE scratch (verifier/state/return) outlives a browser hop on the web via
+ * sessionStorage. On native, the system browser owns the GitHub hop and the
+ * app may be backgrounded, so we persist to localStorage to survive that.
+ */
+function pkceStore(): Storage {
+  return isTauri() ? localStorage : sessionStorage;
+}
 
 interface StoredToken {
   access_token: string;
@@ -57,53 +71,72 @@ export class GitHubAuthService {
   readonly user = this.user$.asReadonly();
   readonly isAuthenticated = () => this.token$() !== null;
 
-  /** Step 1 — redirect to GitHub. Returns a Promise that never resolves; the page navigates away. */
+  /**
+   * Step 1 — send the user to GitHub.
+   *
+   * Web: navigates the page away (Promise effectively never resolves).
+   * Native: opens GitHub in the *system browser* and resolves immediately;
+   * the return arrives later via the `archaeopro://` deep link (see
+   * registerOAuthDeepLink + completeLogin). The `state` carries a marker so
+   * the shared web callback page knows to bounce back into the app.
+   */
   async login(returnTo: string = '/'): Promise<void> {
     if (!environment.githubClientId) {
       throw new Error(
         'GITHUB_CLIENT_ID is not configured. Register a GitHub OAuth App and set it in environments/environment.ts.'
       );
     }
+    const native = isTauri();
     const verifier = randomString(32);
     const challenge = base64UrlEncode(await sha256(verifier));
-    const state = randomString(16);
+    const state = (native ? MOBILE_STATE_PREFIX : '') + randomString(16);
 
-    sessionStorage.setItem(VERIFIER_KEY, verifier);
-    sessionStorage.setItem(STATE_KEY, state);
-    sessionStorage.setItem('gh.return_to', returnTo);
+    const store = pkceStore();
+    store.setItem(VERIFIER_KEY, verifier);
+    store.setItem(STATE_KEY, state);
+    store.setItem(RETURN_KEY, returnTo);
 
     const params = new URLSearchParams({
       client_id: environment.githubClientId,
-      redirect_uri: `${window.location.origin}/auth/callback`,
+      redirect_uri: oauthRedirectUri(),
       scope: environment.githubScopes.join(' '),
       state,
       code_challenge: challenge,
       code_challenge_method: 'S256',
     });
+    const authorizeUrl = `https://github.com/login/oauth/authorize?${params.toString()}`;
 
-    window.location.href = `https://github.com/login/oauth/authorize?${params.toString()}`;
+    if (native) {
+      const { openUrl } = await import('@tauri-apps/plugin-opener');
+      await openUrl(authorizeUrl);
+      return;
+    }
+    window.location.href = authorizeUrl;
   }
 
   /** Step 3 — exchange the OAuth code for a token. */
   async completeLogin(code: string, state: string): Promise<string> {
-    const expectedState = sessionStorage.getItem(STATE_KEY);
-    const verifier = sessionStorage.getItem(VERIFIER_KEY);
+    const store = pkceStore();
+    const expectedState = store.getItem(STATE_KEY);
+    const verifier = store.getItem(VERIFIER_KEY);
     if (!expectedState || !verifier || state !== expectedState) {
       throw new Error('OAuth state mismatch — refusing to exchange code.');
     }
-    sessionStorage.removeItem(STATE_KEY);
-    sessionStorage.removeItem(VERIFIER_KEY);
+    store.removeItem(STATE_KEY);
+    store.removeItem(VERIFIER_KEY);
 
     // GitHub's token endpoint doesn't expose CORS, so we relay through our own
     // backend. The backend forwards the body to GitHub and returns the JSON
-    // verbatim — it never persists the resulting token.
-    const res = await fetch('/auth/github/exchange', {
+    // verbatim — it never persists the resulting token. `apiBase()` is empty on
+    // the web (Netlify proxy) and the Vercel origin in the native shell.
+    // redirect_uri must match the one used in login() (GitHub validates it).
+    const res = await fetch(`${apiBase()}/auth/github/exchange`, {
       method: 'POST',
       headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify({
         client_id: environment.githubClientId,
         code,
-        redirect_uri: `${window.location.origin}/auth/callback`,
+        redirect_uri: oauthRedirectUri(),
         code_verifier: verifier,
       }),
     });
@@ -122,7 +155,9 @@ export class GitHubAuthService {
     };
     localStorage.setItem(TOKEN_KEY, JSON.stringify(stored));
     this.token$.set(stored);
-    return sessionStorage.getItem('gh.return_to') ?? '/';
+    const returnTo = store.getItem(RETURN_KEY) ?? '/';
+    store.removeItem(RETURN_KEY);
+    return returnTo;
   }
 
   logout(): void {

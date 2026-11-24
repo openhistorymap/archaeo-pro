@@ -1,0 +1,31 @@
+[package]
+name = "archaeo-pro"
+version = "0.1.0"
+description = "archaeo·pro — sorveglianze archeologiche"
+authors = ["OpenHistoryMap"]
+edition = "2021"
+# Tauri 2 needs a recent toolchain. This box's cargo 1.65 is too old to build;
+# use rustup to install >= 1.77.2 (see docs/mobile.md).
+rust-version = "1.77.2"
+
+# The mobile entry points (tauri::mobile_entry_point) compile the app as a
+# library, so iOS/Android can link it. The desktop binary links it too.
+[lib]
+name = "archaeo_pro_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-deep-link = "2"
+tauri-plugin-geolocation = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+# Used for production builds (no devUrl); the Tauri template gates the
+# embedded-asset protocol behind it.
+custom-protocol = ["tauri/custom-protocol"]

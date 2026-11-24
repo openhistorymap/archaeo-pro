@@ -9,6 +9,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
+import { apiBase } from './platform';
 import { Surveillance } from './types/surveillance';
 
 export interface WmsSource {
@@ -21,8 +22,14 @@ export interface WmsSource {
 export class ApiService {
   private readonly http = inject(HttpClient);
 
-  /** Empty base — requests go through the dev-server proxy in proxy.conf.json. */
-  private readonly base = '';
+  /**
+   * Empty on the web — requests go through the dev-server proxy / Netlify
+   * reverse-proxy via same-origin relative URLs. In the native shell this is
+   * the Vercel API origin (there's no proxy in front of the app).
+   */
+  private get base(): string {
+    return apiBase();
+  }
 
   wmsSources(): Observable<WmsSource[]> {
     return this.http.get<WmsSource[]>(`${this.base}/wms/sources`);
@@ -98,7 +105,7 @@ export class ApiService {
     if (mapImage) {
       fd.append('map_image', mapImage, 'map.png');
     }
-    const res = await fetch(`/documents/${kind}`, { method: 'POST', body: fd });
+    const res = await fetch(`${this.base}/documents/${kind}`, { method: 'POST', body: fd });
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
       throw new Error(`Document render failed (${res.status}): ${detail.slice(0, 200)}`);

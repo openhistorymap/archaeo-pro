@@ -1,0 +1,8 @@
+# Rust build artifacts
+/target
+
+# Tauri-generated JSON schemas (regenerated on build)
+/gen/schemas
+
+# Keep gen/android and gen/apple checked in: they hold the platform project
+# config, manifests and signing setup you edit by hand.

@@ -23,6 +23,9 @@ export class Login {
     try {
       const returnTo = this.route.snapshot.queryParamMap.get('return_to') ?? '/';
       await this.auth.login(returnTo);
+      // Web navigates away before this runs; native opens the system browser
+      // and returns control here, so release the button.
+      this.busy.set(false);
     } catch (err) {
       this.busy.set(false);
       this.error.set(err instanceof Error ? err.message : String(err));
