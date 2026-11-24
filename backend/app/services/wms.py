@@ -20,7 +20,9 @@ Sources:
   areas. Advertises EPSG:3857.
 - ISPRA, Carta Geologica d'Italia 1:50.000 (progetto CARG), raster
   ImageServer. GetCapabilities lists only EPSG:4326, but GetMap renders
-  EPSG:3857 correctly (checked 2026-11-24).
+  EPSG:3857 correctly (checked 2026-11-24). Keep it on plain HTTP: the
+  server refuses HTTPS connections from Vercel (AWS addresses, any region),
+  while port 80 answers. Tiles still reach the browser over HTTPS, via us.
 
 Each entry is one WMS endpoint plus the layer(s) the PWA turns on.
 """
