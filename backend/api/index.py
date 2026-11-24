@@ -1,8 +1,10 @@
 """Vercel entrypoint.
 
-Vercel's @vercel/python builder treats files under api/ as serverless functions.
-We expose the FastAPI application as `app`; the vercel.json rewrites every
-incoming path to this file so FastAPI's own router handles it.
+Vercel deploys this project as a FastAPI app: it finds `app` here and sends
+every request to it with the original path, so FastAPI's own router handles
+it. No rewrites and no pinned builder in vercel.json: a catch-all rewrite to
+this file would now make FastAPI see the path /api/index for every request,
+and the pinned @vercel/python@4.4.0 builder no longer loads.
 """
 import os
 import sys
