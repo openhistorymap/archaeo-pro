@@ -5,17 +5,24 @@ Referer, occasional IP-based blocking of non-IT data centres). The proxy
 router uses this registry to resolve a logical source id to its upstream
 URL and to attach any required headers.
 
-All current sources point at PCN-Geoportale (gn.mase.gov.it) mapfiles:
-each product is a *separate* mapfile under wms.pcn.minambiente.it/ogc.
-The unified `catalogo.map` advertises every layer in GetCapabilities but
-its mapfile has no top-level projection, so GetMap fails with
-"Cannot set new SRS on a map that doesn't have any projection set." The
-per-product mapfiles work correctly with EPSG:3857.
+Sources:
 
-To add a new layer:
-  1. Find its mapfile in the catalogo's <Attribution> element
-     (https://gn.mase.gov.it/portale/servizio-di-consultazione-wms).
-  2. Add an entry below with the corresponding layer Name.
+- PCN-Geoportale (gn.mase.gov.it): each product is a *separate* mapfile
+  under wms.pcn.minambiente.it/ogc. The unified `catalogo.map` advertises
+  every layer in GetCapabilities but its mapfile has no top-level
+  projection, so GetMap fails with "Cannot set new SRS on a map that
+  doesn't have any projection set." The per-product mapfiles work with
+  EPSG:3857. To add one, find its mapfile in the catalogo's <Attribution>
+  element (https://gn.mase.gov.it/portale/servizio-di-consultazione-wms).
+- Vincoli in Rete (MiC): the public GeoServer behind the VIR webgis,
+  workspace `wms_public`: the protected cultural assets (beni culturali
+  vincolati: points, lines, polygons) and the archaeological constraint
+  areas. Advertises EPSG:3857.
+- ISPRA, Carta Geologica d'Italia 1:50.000 (progetto CARG), raster
+  ImageServer. GetCapabilities lists only EPSG:4326, but GetMap renders
+  EPSG:3857 correctly (checked 2026-11-24).
+
+Each entry is one WMS endpoint plus the layer(s) the PWA turns on.
 """
 from dataclasses import dataclass, field
 
@@ -31,6 +38,8 @@ class WmsSource:
 
 
 _PCN = "http://wms.pcn.minambiente.it/ogc"
+_VIR = "https://vincoliinrete.beniculturali.it/geoserver/ows"
+_ISPRA_CARG = "https://sgi2.isprambiente.it/arcgis/services/raster/geo_50k_italia/ImageServer/WMSServer"
 
 
 SOURCES: dict[str, WmsSource] = {
@@ -63,6 +72,28 @@ SOURCES: dict[str, WmsSource] = {
         label="Corine Land Cover 2012",
         url=f"{_PCN}?map=/ms_ogc/WMS_v1.3/Vettoriali/Corine_Land_Cover2012.map",
         default_layers=("CS.CLC2012",),
+    ),
+    "carg-50k": WmsSource(
+        id="carg-50k",
+        label="Carta Geologica 1:50.000 (ISPRA, CARG)",
+        url=_ISPRA_CARG,
+        default_layers=("0",),
+    ),
+    "vir-beni": WmsSource(
+        id="vir-beni",
+        label="Vincoli in Rete · beni culturali vincolati",
+        url=_VIR,
+        default_layers=(
+            "wms_public:v_geo_anagrafica_beni_poligonali",
+            "wms_public:v_geo_anagrafica_beni_lineari",
+            "wms_public:v_geo_anagrafica_beni_puntuali",
+        ),
+    ),
+    "vir-aree-archeologiche": WmsSource(
+        id="vir-aree-archeologiche",
+        label="Vincoli in Rete · aree archeologiche vincolate",
+        url=_VIR,
+        default_layers=("wms_public:geo_aree_archeol_vincolate",),
     ),
 }
 
