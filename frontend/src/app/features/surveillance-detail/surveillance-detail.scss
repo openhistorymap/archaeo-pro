@@ -363,6 +363,23 @@ textarea {
 
 .upload { display: inline-block; }
 
+/* GeoContext result: warns in accent unless the repo is already public. */
+.gcx-note {
+  margin-top: var(--space-md);
+  display: grid;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  border-left: 3px solid var(--accent);
+  background: var(--accent-quiet);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+.gcx-note p { margin: 0; }
+.gcx-note--ok { border-left-color: var(--field-area); background: var(--surface-warm); }
+.gcx-note__title { font-weight: 600; color: var(--text); }
+.gcx-note__links { display: flex; gap: var(--space-md); flex-wrap: wrap; }
+
 /* --- Giornale day list --------------------------------------------- */
 
 .days {

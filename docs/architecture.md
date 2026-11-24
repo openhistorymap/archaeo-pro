@@ -167,13 +167,24 @@ Not covered yet: DSC geometries other than the surveillance area (no drawing
 tool for separate trenches), point and line DSC, images in MOSI, the VPIA
 layers (VRP/VRD, RCG), which a surveillance does not use.
 
+## GeoContext map
+
+The "GeoContext" button on a surveillance writes, through the offline queue:
+
+```
+geocontext.json               the descriptor (title, centre, layers, detail panel)
+geocontext/findings.geojson   one feature per drawn finding, with its first detail photo
+geocontext/area.geojson       the watched area
+```
+
+GeoContext (`openhistorymap.org/geocontext-front/<owner>/<repo>/map`) reads
+these through jsDelivr, which serves **public** repositories only. The
+surveillance repos are private by default, so the map only works once the
+archaeologist makes the repo public on GitHub, which publishes everything in
+it (locations, giornale, photos, names). The app checks the visibility and
+says so; it never changes it. Press the button again to refresh the files.
+
 ## OHM export
 
-`exports/ohm.geojson` is a FeatureCollection of the surveillance's findings
-with OSM-style tags + temporal extents. Two follow-up actions (deferred):
-
-- **Export to OHM** — registers the surveillance in OHM's data index.
-- **Publish GeoContext** — pushes the GCX form to a public repository.
-
-Both are manual, opt-in, and operate on the already-generated
-`exports/ohm.geojson`.
+Deferred: **Export to OHM** — register the surveillance's findings (OSM-style
+tags + temporal extents) in OHM's data index. Manual and opt-in.

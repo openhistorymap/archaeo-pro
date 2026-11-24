@@ -28,8 +28,15 @@ import {
   SurveillanceStatus,
   Tavola,
 } from '../types/surveillance';
+import {
+  GEOCONTEXT_AREA,
+  GEOCONTEXT_FILE,
+  GEOCONTEXT_FINDINGS,
+  buildGeoContext,
+} from '../geocontext/geocontext';
 import { GitHubAuthService } from '../github/auth.service';
-import { RepoRef } from '../github/client';
+import { GitHubClient, RepoRef } from '../github/client';
+import { isNetworkError } from '../offline/db';
 import { RepoFs } from '../offline/repo-fs';
 import { resizeImage } from '../utils/image-resize';
 import { IndexRepoService } from './index-repo';
@@ -65,6 +72,7 @@ function uuidv4(): string {
 @Injectable({ providedIn: 'root' })
 export class SurveillanceStore {
   private readonly fs = inject(RepoFs);
+  private readonly gh = inject(GitHubClient);
   private readonly auth = inject(GitHubAuthService);
   private readonly index = inject(IndexRepoService);
 
@@ -338,6 +346,32 @@ export class SurveillanceStore {
   /** A binary in the surveillance repo (photo, tavola, export), from the device when possible. */
   getBinary(ref: RepoRef, path: string, contentType?: string): Promise<Blob | null> {
     return this.fs.getBlob(ref, path, contentType);
+  }
+
+  // ---- GeoContext -------------------------------------------------------
+
+  /**
+   * Write (or refresh) the GeoContext descriptor and its two GeoJSON files
+   * in the surveillance repo. Goes through the offline queue like any edit.
+   * The public map only works once the repo itself is public.
+   */
+  async writeGeoContext(ref: RepoRef, s: Surveillance): Promise<void> {
+    const { descriptor, findings, area } = buildGeoContext(s);
+    await this.fs.putJson(ref, GEOCONTEXT_FINDINGS, findings, 'archaeo-pro: GeoContext, evidenze');
+    await this.fs.putJson(ref, GEOCONTEXT_AREA, area, 'archaeo-pro: GeoContext, area');
+    await this.fs.putJson(ref, GEOCONTEXT_FILE, descriptor, 'archaeo-pro: descrittore GeoContext');
+  }
+
+  /** Whether GitHub serves the repo publicly; 'unknown' offline or for a repo not yet created. */
+  async repoVisibility(ref: RepoRef): Promise<'public' | 'private' | 'unknown'> {
+    try {
+      const repo = await this.gh.getRepo(ref);
+      if (!repo) return 'unknown';
+      return repo.private ? 'private' : 'public';
+    } catch (e) {
+      if (isNetworkError(e)) return 'unknown';
+      throw e;
+    }
   }
 
   // ---- giornale di scavo ----------------------------------------------

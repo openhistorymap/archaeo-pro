@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { ApiService } from '../../core/api.service';
 import { PhotoThumb } from '../../core/components/photo-thumb';
+import { geoContextMapUrl } from '../../core/geocontext/geocontext';
 import { RepoRef } from '../../core/github/client';
 import { IndexRepoService } from '../../core/storage/index-repo';
 import { SurveillanceStore } from '../../core/storage/surveillance-store';
@@ -30,6 +31,8 @@ export class SurveillanceDetail {
   readonly surveillance = signal<Surveillance | null>(null);
   readonly ref = signal<RepoRef | null>(null);
   readonly repoUrl = signal<string | null>(null);
+  /** Set after the GeoContext descriptor is written: where the map lives and whether it can load. */
+  readonly geoContext = signal<{ visibility: 'public' | 'private' | 'unknown'; mapUrl: string } | null>(null);
 
   readonly form = new FormGroup({
     title: new FormControl('', { nonNullable: true }),
@@ -274,6 +277,28 @@ export class SurveillanceDetail {
     try {
       const updated = await this.store.setStatus(ref, next);
       this.surveillance.set(updated);
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : String(err));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  /**
+   * Write the GeoContext descriptor into the surveillance repo and say
+   * whether the public map can work: GeoContext reads the repo through
+   * jsDelivr, which only serves public GitHub repositories.
+   */
+  async generateGeoContext(): Promise<void> {
+    const ref = this.ref();
+    const s = this.surveillance();
+    if (!ref || !s || this.busy()) return;
+    this.busy.set(true);
+    this.error.set(null);
+    try {
+      await this.store.writeGeoContext(ref, s);
+      const visibility = await this.store.repoVisibility(ref);
+      this.geoContext.set({ visibility, mapUrl: geoContextMapUrl(ref) });
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : String(err));
     } finally {

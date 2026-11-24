@@ -317,6 +317,41 @@
       <p class="form__error">{{ error() }}</p>
     }
 
+    @if (geoContext(); as gc) {
+      <div class="gcx-note" [class.gcx-note--ok]="gc.visibility === 'public'" role="status">
+        <p class="gcx-note__title">Descrittore GeoContext scritto nel repository</p>
+        <p>
+          <span class="tabular">geocontext.json</span>, con le evidenze e l'area in
+          <span class="tabular">geocontext/</span>. Si aggiorna premendo di nuovo il pulsante.
+        </p>
+        @switch (gc.visibility) {
+          @case ('public') {
+            <p>Il repository è pubblico: la mappa è consultabile qui (jsDelivr può impiegare qualche minuto ad aggiornarsi).</p>
+          }
+          @case ('private') {
+            <p>
+              <b>Il repository è privato: la mappa non funzionerà.</b> GeoContext legge i file tramite jsDelivr,
+              che vede solo i repository pubblici. Rendilo pubblico dalle impostazioni del repository su GitHub,
+              solo se puoi: tutto il suo contenuto (posizioni, giornale, foto, nomi) diventa visibile a chiunque.
+              Verifica prima che non ci siano vincoli di riservatezza o di embargo della Soprintendenza.
+            </p>
+          }
+          @default {
+            <p>
+              Non è stato possibile verificare se il repository è pubblico (sei offline?).
+              La mappa funziona solo con un repository pubblico, perché GeoContext legge i file tramite jsDelivr.
+            </p>
+          }
+        }
+        <p class="gcx-note__links">
+          <a [href]="gc.mapUrl" target="_blank" rel="noopener">Apri la mappa GeoContext ↗</a>
+          @if (repoUrl(); as url) {
+            <a [href]="url + '/settings'" target="_blank" rel="noopener">Impostazioni del repository ↗</a>
+          }
+        </p>
+      </div>
+    }
+
     <div class="page__toolbar">
       <span class="page__toolbar-meta muted">
         Aggiornata <span class="tabular">{{ s.updated_at | date:'dd.MM.yyyy HH:mm' }}</span>
@@ -325,6 +360,8 @@
         <a [routerLink]="['/surveillances', s.id, 'map']" class="btn btn--ghost">Mappa</a>
         <button type="button" class="btn btn--ghost" [disabled]="busy()" (click)="generate('docx')">DOCX</button>
         <a [routerLink]="['/surveillances', s.id, 'gna']" class="btn btn--ghost">GNA</a>
+        <button type="button" class="btn btn--ghost" [disabled]="busy()" (click)="generateGeoContext()"
+                title="Scrive geocontext.json nel repository: la mappa funziona solo se il repository è pubblico">GeoContext</button>
         <!-- PDF temporaneamente disabilitato — riattivare ripristinando questo
              pulsante quando il servizio Gotenberg sarà pubblicato.
         <button type="button" class="btn btn--ghost" [disabled]="busy()" (click)="generate('pdf')">PDF</button>
