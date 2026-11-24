@@ -20,7 +20,7 @@ import maplibregl, {
 } from 'maplibre-gl';
 
 import { ApiService, WmsSource } from '../../core/api.service';
-import { GitHubClient, RepoRef } from '../../core/github/client';
+import { RepoRef } from '../../core/github/client';
 import { IndexRepoService } from '../../core/storage/index-repo';
 import { SurveillanceStore } from '../../core/storage/surveillance-store';
 import { Finding, Surveillance, Tavola } from '../../core/types/surveillance';
@@ -94,7 +94,6 @@ export class SurveillanceMap implements AfterViewInit, OnDestroy {
   private readonly index = inject(IndexRepoService);
   private readonly store = inject(SurveillanceStore);
   private readonly api = inject(ApiService);
-  private readonly gh = inject(GitHubClient);
 
   readonly mapContainer = viewChild.required<ElementRef<HTMLDivElement>>('mapContainer');
 

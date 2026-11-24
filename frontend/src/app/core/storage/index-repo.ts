@@ -4,12 +4,17 @@
  * One file per surveillance under surveillances/<id>.json so concurrent edits
  * across devices don't conflict on the index. README + profile.json round it
  * out so the repo is self-explanatory when browsed on github.com.
+ *
+ * Reads and writes go through the offline mirror (RepoFs): the index works
+ * without a connection once it has been opened online on this device.
  */
 import { Injectable, inject } from '@angular/core';
 
 import { SurveillanceIndexEntry } from '../types/surveillance';
 import { GitHubAuthService } from '../github/auth.service';
 import { GitHubClient, RepoRef } from '../github/client';
+import { OfflineUnavailableError } from '../offline/db';
+import { RepoFs } from '../offline/repo-fs';
 
 const INDEX_REPO_NAME = 'archaeo-pro-index';
 const INDEX_REPO_DESCRIPTION =
@@ -30,55 +35,60 @@ the per-surveillance repos.
 export class IndexRepoService {
   private readonly gh = inject(GitHubClient);
   private readonly auth = inject(GitHubAuthService);
+  private readonly fs = inject(RepoFs);
 
-  /** Create the index repo if it doesn't exist; populate the README + profile.json. */
+  /**
+   * The index repo, created on GitHub if this account has none yet. Creating
+   * it needs a connection: offline, a device that has never seen the index
+   * can't tell whether it exists, and must not make a second one.
+   */
   async bootstrap(): Promise<RepoRef> {
     const me = await this.auth.ensureUser();
     if (!me) throw new Error('Cannot bootstrap index repo: not authenticated.');
     const ref: RepoRef = { owner: me.login, name: INDEX_REPO_NAME };
+    if (await this.fs.isMirrored(ref)) return ref;
 
-    let repo = await this.gh.getRepo(ref);
+    let repo;
+    try {
+      repo = await this.gh.getRepo(ref);
+    } catch (e) {
+      if (e instanceof TypeError) throw new OfflineUnavailableError("L'elenco delle sorveglianze");
+      throw e;
+    }
     if (!repo) {
-      repo = await this.gh.createUserRepo(INDEX_REPO_NAME, {
+      await this.gh.createUserRepo(INDEX_REPO_NAME, {
         description: INDEX_REPO_DESCRIPTION,
         private: true,
       });
+      await this.fs.ready(ref, { force: true });
       // auto_init=true gives us a default README; overwrite with our own.
-      const readme = await this.gh.getFile(ref, 'README.md');
-      await this.gh.putFile(ref, 'README.md', INDEX_README, 'archaeo-pro: init index repo', readme?.sha);
-      await this.gh.putFile(
+      await this.fs.putText(ref, 'README.md', INDEX_README, 'archaeo-pro: init index repo');
+      await this.fs.putJson(
         ref,
         'profile.json',
-        JSON.stringify({ login: me.login, name: me.name, created_at: new Date().toISOString() }, null, 2),
+        { login: me.login, name: me.name, created_at: new Date().toISOString() },
         'archaeo-pro: write profile',
       );
-      await this.gh.putFile(
-        ref,
-        '.archaeo-pro/version',
-        '1\n',
-        'archaeo-pro: pin schema version',
-      );
+      await this.fs.putText(ref, '.archaeo-pro/version', '1\n', 'archaeo-pro: pin schema version');
     }
     return ref;
   }
 
   async getEntry(id: string): Promise<SurveillanceIndexEntry | null> {
     const ref = await this.bootstrap();
-    const f = await this.gh.getFile(ref, `surveillances/${id}.json`);
-    if (!f) return null;
-    return JSON.parse(this.decode(f.content)) as SurveillanceIndexEntry;
+    return this.fs.getJson<SurveillanceIndexEntry>(ref, `surveillances/${id}.json`);
   }
 
   async listEntries(): Promise<SurveillanceIndexEntry[]> {
     const ref = await this.bootstrap();
-    const items = await this.gh.listDir(ref, 'surveillances');
-    const files = items.filter((i) => i.type === 'file' && i.name.endsWith('.json'));
+    const files = (await this.fs.listDir(ref, 'surveillances')).filter((i) =>
+      i.name.endsWith('.json'),
+    );
     const entries: SurveillanceIndexEntry[] = [];
     for (const f of files) {
-      const blob = await this.gh.getFile(ref, f.path);
-      if (!blob) continue;
       try {
-        entries.push(JSON.parse(this.decode(blob.content)) as SurveillanceIndexEntry);
+        const entry = await this.fs.getJson<SurveillanceIndexEntry>(ref, f.path);
+        if (entry) entries.push(entry);
       } catch {
         // skip malformed entry; surface in UI later if needed
       }
@@ -89,25 +99,17 @@ export class IndexRepoService {
   async putEntry(entry: SurveillanceIndexEntry): Promise<void> {
     const ref = await this.bootstrap();
     const path = `surveillances/${entry.id}.json`;
-    const existing = await this.gh.getFile(ref, path);
-    await this.gh.putFile(
+    const existed = await this.fs.exists(ref, path);
+    await this.fs.putJson(
       ref,
       path,
-      JSON.stringify(entry, null, 2) + '\n',
-      `archaeo-pro: ${existing ? 'update' : 'add'} ${entry.title}`,
-      existing?.sha,
+      entry,
+      `archaeo-pro: ${existed ? 'update' : 'add'} ${entry.title}`,
     );
   }
 
   async deleteEntry(id: string): Promise<void> {
     const ref = await this.bootstrap();
-    const path = `surveillances/${id}.json`;
-    const existing = await this.gh.getFile(ref, path);
-    if (!existing) return;
-    await this.gh.deleteFile(ref, path, existing.sha, `archaeo-pro: remove ${id}`);
-  }
-
-  private decode(b64: string): string {
-    return decodeURIComponent(escape(atob(b64.replace(/\n/g, ''))));
+    await this.fs.remove(ref, `surveillances/${id}.json`, `archaeo-pro: remove ${id}`);
   }
 }

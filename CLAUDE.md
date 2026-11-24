@@ -10,6 +10,10 @@ top-level pointers to the rest of the project.
   `archaeo-pro-index` repo + one `archaeo-pro-{uuid}` repo per surveillance.
   Photos live as binary assets on a `data` Release per surveillance. The
   backend keeps no state. See `docs/architecture.md`.
+- **Offline-first**: stores never call GitHub directly — they go through
+  `core/offline/RepoFs` (Dexie mirror) and `SyncService` (ordered outbox,
+  field edit wins, remote copy kept in `conflicts`). New storage code must use
+  `RepoFs`, not `GitHubClient`. See "Offline-first" in `docs/architecture.md`.
 - **Deployment**: Frontend on Netlify (`archaeo.pro`, `archeo.pro` 301-fix),
   API on Vercel (`backend/`), Gotenberg PDF service self-hosted from
   `pdf-service/`. Netlify reverse-proxies API paths so the PWA never deals

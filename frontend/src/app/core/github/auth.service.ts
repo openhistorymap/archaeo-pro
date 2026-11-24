@@ -16,6 +16,7 @@ import { environment } from '../../../environments/environment';
 import { apiBase, isTauri, oauthRedirectUri } from '../platform';
 
 const TOKEN_KEY = 'gh.token.v1';
+const USER_KEY = 'gh.user.v1';
 const VERIFIER_KEY = 'gh.pkce.verifier';
 const STATE_KEY = 'gh.pkce.state';
 const RETURN_KEY = 'gh.return_to';
@@ -162,6 +163,7 @@ export class GitHubAuthService {
 
   logout(): void {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
     this.token$.set(null);
     this.user$.set(null);
   }
@@ -170,16 +172,35 @@ export class GitHubAuthService {
     const t = this.token$();
     if (!t) return null;
     if (this.user$()) return this.user$();
-    const res = await fetch('https://api.github.com/user', {
-      headers: { Authorization: `Bearer ${t.access_token}`, Accept: 'application/vnd.github+json' },
-    });
+    let res: Response;
+    try {
+      res = await fetch('https://api.github.com/user', {
+        headers: { Authorization: `Bearer ${t.access_token}`, Accept: 'application/vnd.github+json' },
+      });
+    } catch {
+      // Offline: the profile cached at the last online start is good enough to
+      // address the user's repos; the token is checked again on the next sync.
+      const cached = this.readUser();
+      if (cached) this.user$.set(cached);
+      return cached;
+    }
     if (!res.ok) {
       if (res.status === 401) this.logout();
       return null;
     }
     const u = (await res.json()) as GitHubUser;
+    localStorage.setItem(USER_KEY, JSON.stringify(u));
     this.user$.set(u);
     return u;
+  }
+
+  private readUser(): GitHubUser | null {
+    try {
+      const raw = localStorage.getItem(USER_KEY);
+      return raw ? (JSON.parse(raw) as GitHubUser) : null;
+    } catch {
+      return null;
+    }
   }
 
   private readToken(): StoredToken | null {

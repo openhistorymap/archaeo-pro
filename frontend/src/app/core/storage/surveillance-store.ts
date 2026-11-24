@@ -7,9 +7,14 @@
  *   area.geojson
  *   findings/<finding-id>.geojson
  *   units/<finding-id>/us-NNN.json
- *   photos/<photo-id>.json    -> references a Release asset on tag "data"
+ *   photos/<photo-id>.json    -> metadata beside photos/<photo-id>.<ext>
  *   exports/...
  *   .archaeo-pro/version
+ *
+ * Everything goes through the offline mirror (RepoFs): edits are saved on the
+ * device at once and pushed to GitHub by SyncService when there is a
+ * connection. A surveillance can even be created offline; its repo is created
+ * on GitHub by the next sync.
  */
 import { Injectable, inject } from '@angular/core';
 
@@ -24,7 +29,8 @@ import {
   Tavola,
 } from '../types/surveillance';
 import { GitHubAuthService } from '../github/auth.service';
-import { GitHubClient, RepoRef } from '../github/client';
+import { RepoRef } from '../github/client';
+import { RepoFs } from '../offline/repo-fs';
 import { resizeImage } from '../utils/image-resize';
 import { IndexRepoService } from './index-repo';
 
@@ -58,23 +64,22 @@ function uuidv4(): string {
 
 @Injectable({ providedIn: 'root' })
 export class SurveillanceStore {
-  private readonly gh = inject(GitHubClient);
+  private readonly fs = inject(RepoFs);
   private readonly auth = inject(GitHubAuthService);
   private readonly index = inject(IndexRepoService);
 
   // ---- create / load ---------------------------------------------------
 
-  async createSurveillance(input: CreateSurveillanceInput): Promise<{ ref: RepoRef; surveillance: Surveillance }> {
+  async createSurveillance(
+    input: CreateSurveillanceInput,
+  ): Promise<{ ref: RepoRef; surveillance: Surveillance }> {
     const me = await this.auth.ensureUser();
     if (!me) throw new Error('Not authenticated.');
 
     const id = uuidv4();
     const repoName = `${SURVEILLANCE_REPO_PREFIX}${id}`;
-    const repo = await this.gh.createUserRepo(repoName, {
-      description: `archaeo-pro — ${input.title}`,
-      private: true,
-    });
     const ref: RepoRef = { owner: me.login, name: repoName };
+    await this.fs.createRepo(ref, `archaeo-pro — ${input.title}`);
 
     const now = new Date().toISOString();
     const surveillance: Surveillance = {
@@ -105,27 +110,23 @@ export class SurveillanceStore {
       updated_at: now,
     };
 
-    // Overwrite the auto-init README with our own.
-    const readme = await this.gh.getFile(ref, 'README.md');
-    await this.gh.putFile(ref, 'README.md', SURVEILLANCE_README(surveillance), 'archaeo-pro: init', readme?.sha);
-
-    await this.gh.putFile(
+    await this.fs.putText(ref, 'README.md', SURVEILLANCE_README(surveillance), 'archaeo-pro: init');
+    await this.fs.putJson(
       ref,
       'surveillance.json',
-      JSON.stringify(this.toRoot(surveillance), null, 2) + '\n',
+      this.toRoot(surveillance),
       'archaeo-pro: init surveillance',
     );
-    await this.gh.putFile(ref, '.archaeo-pro/version', '1\n', 'archaeo-pro: pin schema version');
+    await this.fs.putText(ref, '.archaeo-pro/version', '1\n', 'archaeo-pro: pin schema version');
 
-    await this.index.putEntry(this.toIndexEntry(surveillance, repo.html_url, ref));
+    await this.index.putEntry(this.toIndexEntry(surveillance, this.repoUrl(ref), ref));
 
     return { ref, surveillance };
   }
 
   async loadSurveillance(ref: RepoRef): Promise<Surveillance> {
-    const root = await this.gh.getFile(ref, 'surveillance.json');
-    if (!root) throw new Error(`surveillance.json missing in ${ref.owner}/${ref.name}`);
-    const raw = JSON.parse(this.decode(root.content)) as Partial<Surveillance>;
+    const raw = await this.fs.getJson<Partial<Surveillance>>(ref, 'surveillance.json');
+    if (!raw) throw new Error(`surveillance.json missing in ${ref.owner}/${ref.name}`);
     // Pre-status surveys default to 'draft' so the new flow works on legacy data.
     const base = {
       ...(raw as Omit<Surveillance, 'findings' | 'photos' | 'days' | 'tavole'>),
@@ -133,11 +134,10 @@ export class SurveillanceStore {
     };
 
     const findings: Finding[] = [];
-    for (const item of await this.gh.listDir(ref, 'findings')) {
-      if (item.type !== 'file' || !item.name.endsWith('.geojson')) continue;
-      const f = await this.gh.getFile(ref, item.path);
-      if (!f) continue;
-      const feature = JSON.parse(this.decode(f.content)) as GeoJSON.Feature;
+    for (const item of await this.fs.listDir(ref, 'findings')) {
+      if (!item.name.endsWith('.geojson')) continue;
+      const feature = await this.fs.getJson<GeoJSON.Feature>(ref, item.path);
+      if (!feature) continue;
       const props = (feature.properties ?? {}) as Partial<Finding>;
       const finding: Finding = {
         id: (props.id as string) ?? item.name.replace(/\.geojson$/, ''),
@@ -155,52 +155,35 @@ export class SurveillanceStore {
       findings.push(finding);
     }
 
-    const photos: Photo[] = [];
-    for (const item of await this.gh.listDir(ref, 'photos')) {
-      if (item.type !== 'file' || !item.name.endsWith('.json')) continue;
-      const f = await this.gh.getFile(ref, item.path);
-      if (!f) continue;
-      photos.push(JSON.parse(this.decode(f.content)) as Photo);
-    }
+    const photos = await this.loadJsonDir<Photo>(ref, 'photos');
 
-    const days: DayLog[] = [];
-    for (const item of await this.gh.listDir(ref, 'daily')) {
-      if (item.type !== 'file' || !item.name.endsWith('.json')) continue;
-      const f = await this.gh.getFile(ref, item.path);
-      if (!f) continue;
-      try {
-        days.push(JSON.parse(this.decode(f.content)) as DayLog);
-      } catch {
-        // skip a malformed day; the rest of the journal still loads
-      }
-    }
+    const days = await this.loadJsonDir<DayLog>(ref, 'daily');
     days.sort((a, b) => (a.date < b.date ? -1 : 1));
 
-    const tavole: Tavola[] = [];
-    for (const item of await this.gh.listDir(ref, 'tavole')) {
-      if (item.type !== 'file' || !item.name.endsWith('.json')) continue;
-      const f = await this.gh.getFile(ref, item.path);
-      if (!f) continue;
-      try {
-        tavole.push(JSON.parse(this.decode(f.content)) as Tavola);
-      } catch {
-        // skip a malformed tavola
-      }
-    }
-    tavole.sort((a, b) => (a.captured_on ?? '') < (b.captured_on ?? '') ? -1 : 1);
+    const tavole = await this.loadJsonDir<Tavola>(ref, 'tavole');
+    tavole.sort((a, b) => ((a.captured_on ?? '') < (b.captured_on ?? '') ? -1 : 1));
 
     return { ...base, findings, photos, days, tavole } as Surveillance;
   }
 
   private async loadUnits(ref: RepoRef, findingId: string): Promise<StratigraphicUnit[]> {
-    const out: StratigraphicUnit[] = [];
-    for (const item of await this.gh.listDir(ref, `units/${findingId}`)) {
-      if (item.type !== 'file' || !item.name.endsWith('.json')) continue;
-      const f = await this.gh.getFile(ref, item.path);
-      if (!f) continue;
-      out.push(JSON.parse(this.decode(f.content)) as StratigraphicUnit);
-    }
+    const out = await this.loadJsonDir<StratigraphicUnit>(ref, `units/${findingId}`);
     return out.sort((a, b) => a.number - b.number);
+  }
+
+  /** Every `*.json` in a directory; a malformed file is skipped so the rest still loads. */
+  private async loadJsonDir<T>(ref: RepoRef, dir: string): Promise<T[]> {
+    const out: T[] = [];
+    for (const item of await this.fs.listDir(ref, dir)) {
+      if (!item.name.endsWith('.json')) continue;
+      try {
+        const value = await this.fs.getJson<T>(ref, item.path);
+        if (value) out.push(value);
+      } catch {
+        // skip a malformed file
+      }
+    }
+    return out;
   }
 
   // ---- mutations -------------------------------------------------------
@@ -218,26 +201,22 @@ export class SurveillanceStore {
   }
 
   async saveSurveillance(ref: RepoRef, s: Surveillance): Promise<void> {
-    const existing = await this.gh.getFile(ref, 'surveillance.json');
     const updated: Surveillance = { ...s, updated_at: new Date().toISOString() };
-    await this.gh.putFile(
+    await this.fs.putJson(
       ref,
       'surveillance.json',
-      JSON.stringify(this.toRoot(updated), null, 2) + '\n',
+      this.toRoot(updated),
       'archaeo-pro: update surveillance',
-      existing?.sha,
     );
     const me = await this.auth.ensureUser();
     if (me) {
-      await this.index.putEntry(
-        this.toIndexEntry(updated, `https://github.com/${ref.owner}/${ref.name}`, ref),
-      );
+      await this.index.putEntry(this.toIndexEntry(updated, this.repoUrl(ref), ref));
     }
   }
 
   async addFinding(ref: RepoRef, finding: Finding): Promise<void> {
     const path = `findings/${finding.id}.geojson`;
-    const existing = await this.gh.getFile(ref, path);
+    const existed = await this.fs.exists(ref, path);
     const feature: GeoJSON.Feature = {
       type: 'Feature',
       id: finding.id,
@@ -253,28 +232,26 @@ export class SurveillanceStore {
         recorded_on: finding.recorded_on ?? null,
       },
     };
-    await this.gh.putFile(
+    await this.fs.putJson(
       ref,
       path,
-      JSON.stringify(feature, null, 2) + '\n',
-      `archaeo-pro: ${existing ? 'update' : 'add'} finding ${finding.name}`,
-      existing?.sha,
+      feature,
+      `archaeo-pro: ${existed ? 'update' : 'add'} finding ${finding.name}`,
     );
   }
 
-  async attachPhoto(ref: RepoRef, file: File, meta: Omit<Photo, 'id' | 'path' | 'content_type'>): Promise<Photo> {
+  async attachPhoto(
+    ref: RepoRef,
+    file: File,
+    meta: Omit<Photo, 'id' | 'path' | 'content_type'>,
+  ): Promise<Photo> {
     const id = uuidv4();
-    // Downscale before upload so 10 MB phone photos don't hammer mobile data
-    // and don't blow the Contents API base64 round-trip ceiling.
+    // Downscale before saving so 10 MB phone photos don't fill the device
+    // mirror, hammer mobile data, or blow the Contents API base64 ceiling.
     const optimized = await resizeImage(file);
-    const ext = (optimized.type === 'image/png' ? 'png' : 'jpg');
+    const ext = optimized.type === 'image/png' ? 'png' : 'jpg';
     const path = `photos/${id}.${ext}`;
-    await this.gh.putBinaryFile(
-      ref,
-      path,
-      optimized,
-      `archaeo-pro: add photo ${optimized.name}`,
-    );
+    await this.fs.putBlob(ref, path, optimized, `archaeo-pro: add photo ${optimized.name}`);
     const photo: Photo = {
       ...meta,
       id,
@@ -282,10 +259,10 @@ export class SurveillanceStore {
       path,
       content_type: optimized.type || 'image/jpeg',
     };
-    await this.gh.putFile(
+    await this.fs.putJson(
       ref,
       `photos/${id}.json`,
-      JSON.stringify(photo, null, 2) + '\n',
+      photo,
       `archaeo-pro: add photo metadata for ${optimized.name}`,
     );
     return photo;
@@ -303,7 +280,7 @@ export class SurveillanceStore {
     const path = `tavole/${id}.${ext}`;
     const dateLabel = meta.captured_on ?? new Date().toISOString().slice(0, 10);
     const filename = `tavola-${meta.kind}-${dateLabel}.${ext}`;
-    await this.gh.putBinaryFile(
+    await this.fs.putBlob(
       ref,
       path,
       blob,
@@ -316,10 +293,10 @@ export class SurveillanceStore {
       path,
       content_type: blob.type || 'image/png',
     };
-    await this.gh.putFile(
+    await this.fs.putJson(
       ref,
       `tavole/${id}.json`,
-      JSON.stringify(tavola, null, 2) + '\n',
+      tavola,
       `archaeo-pro: metadata tavola ${meta.kind}`,
     );
     return tavola;
@@ -327,55 +304,38 @@ export class SurveillanceStore {
 
   /**
    * Remove a photo: deletes both the binary at photos/<id>.<ext> and the
-   * metadata sidecar photos/<id>.json. Each is a separate commit on GitHub
-   * because the Contents API doesn't support multi-file deletes.
+   * metadata sidecar photos/<id>.json. Each becomes a separate commit on
+   * GitHub because the Contents API doesn't support multi-file deletes.
    */
   async deletePhoto(ref: RepoRef, photo: Photo): Promise<void> {
     if (photo.path) {
-      const f = await this.gh.getFile(ref, photo.path);
-      if (f) {
-        await this.gh.deleteFile(
-          ref,
-          photo.path,
-          f.sha,
-          `archaeo-pro: rimuovi foto ${photo.filename ?? photo.id}`,
-        );
-      }
-    }
-    const jsonPath = `photos/${photo.id}.json`;
-    const j = await this.gh.getFile(ref, jsonPath);
-    if (j) {
-      await this.gh.deleteFile(
+      await this.fs.remove(
         ref,
-        jsonPath,
-        j.sha,
-        `archaeo-pro: rimuovi metadata foto ${photo.id}`,
+        photo.path,
+        `archaeo-pro: rimuovi foto ${photo.filename ?? photo.id}`,
       );
     }
+    await this.fs.remove(
+      ref,
+      `photos/${photo.id}.json`,
+      `archaeo-pro: rimuovi metadata foto ${photo.id}`,
+    );
   }
 
   async deleteTavola(ref: RepoRef, tavola: Tavola): Promise<void> {
     if (tavola.path) {
-      const f = await this.gh.getFile(ref, tavola.path);
-      if (f) {
-        await this.gh.deleteFile(
-          ref,
-          tavola.path,
-          f.sha,
-          `archaeo-pro: rimuovi tavola ${tavola.kind}`,
-        );
-      }
+      await this.fs.remove(ref, tavola.path, `archaeo-pro: rimuovi tavola ${tavola.kind}`);
     }
-    const jsonPath = `tavole/${tavola.id}.json`;
-    const j = await this.gh.getFile(ref, jsonPath);
-    if (j) {
-      await this.gh.deleteFile(
-        ref,
-        jsonPath,
-        j.sha,
-        `archaeo-pro: rimuovi metadata tavola ${tavola.id}`,
-      );
-    }
+    await this.fs.remove(
+      ref,
+      `tavole/${tavola.id}.json`,
+      `archaeo-pro: rimuovi metadata tavola ${tavola.id}`,
+    );
+  }
+
+  /** A binary in the surveillance repo (photo, tavola, export), from the device when possible. */
+  getBinary(ref: RepoRef, path: string, contentType?: string): Promise<Blob | null> {
+    return this.fs.getBlob(ref, path, contentType);
   }
 
   // ---- giornale di scavo ----------------------------------------------
@@ -385,40 +345,38 @@ export class SurveillanceStore {
       throw new Error(`Day date must be YYYY-MM-DD, got "${day.date}"`);
     }
     const path = `daily/${day.date}.json`;
-    const existing = await this.gh.getFile(ref, path);
+    const existed = await this.fs.exists(ref, path);
     const now = new Date().toISOString();
     const updated: DayLog = {
       ...day,
-      created_at: existing ? day.created_at || now : now,
+      created_at: existed ? day.created_at || now : now,
       updated_at: now,
     };
-    await this.gh.putFile(
+    await this.fs.putJson(
       ref,
       path,
-      JSON.stringify(updated, null, 2) + '\n',
-      `archaeo-pro: ${existing ? 'update' : 'add'} giornale ${day.date}`,
-      existing?.sha,
+      updated,
+      `archaeo-pro: ${existed ? 'update' : 'add'} giornale ${day.date}`,
     );
     return updated;
   }
 
   async deleteDay(ref: RepoRef, date: string): Promise<void> {
-    const path = `daily/${date}.json`;
-    const existing = await this.gh.getFile(ref, path);
-    if (!existing) return;
-    await this.gh.deleteFile(ref, path, existing.sha, `archaeo-pro: rimuovi giornale ${date}`);
+    await this.fs.remove(ref, `daily/${date}.json`, `archaeo-pro: rimuovi giornale ${date}`);
   }
 
-  async getDay(ref: RepoRef, date: string): Promise<DayLog | null> {
-    const f = await this.gh.getFile(ref, `daily/${date}.json`);
-    if (!f) return null;
-    return JSON.parse(this.decode(f.content)) as DayLog;
+  getDay(ref: RepoRef, date: string): Promise<DayLog | null> {
+    return this.fs.getJson<DayLog>(ref, `daily/${date}.json`);
   }
 
   // ---- helpers ---------------------------------------------------------
 
   refForSurveillance(entry: SurveillanceIndexEntry): RepoRef {
     return entry.repo;
+  }
+
+  private repoUrl(ref: RepoRef): string {
+    return `https://github.com/${ref.owner}/${ref.name}`;
   }
 
   private toRoot(s: Surveillance): Omit<Surveillance, 'findings' | 'photos' | 'days' | 'tavole'> {
@@ -444,9 +402,14 @@ export class SurveillanceStore {
     };
   }
 
-  private bboxOfArea(area: GeoJSON.Polygon | null | undefined): [number, number, number, number] | null {
+  private bboxOfArea(
+    area: GeoJSON.Polygon | null | undefined,
+  ): [number, number, number, number] | null {
     if (!area || !area.coordinates || area.coordinates.length === 0) return null;
-    let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity;
+    let west = Infinity,
+      south = Infinity,
+      east = -Infinity,
+      north = -Infinity;
     for (const ring of area.coordinates) {
       for (const [x, y] of ring) {
         if (x < west) west = x;
@@ -456,9 +419,5 @@ export class SurveillanceStore {
       }
     }
     return [west, south, east, north];
-  }
-
-  private decode(b64: string): string {
-    return decodeURIComponent(escape(atob(b64.replace(/\n/g, ''))));
   }
 }

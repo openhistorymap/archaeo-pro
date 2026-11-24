@@ -2,12 +2,13 @@ import { Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
 
 import { GitHubAuthService } from './core/github/auth.service';
+import { SyncBadge } from './core/offline/sync-badge';
 import { ThemeService } from './core/theme.service';
 import { registerOAuthDeepLink } from './core/tauri/deep-link';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterLink, RouterOutlet],
+  imports: [RouterLink, RouterOutlet, SyncBadge],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })

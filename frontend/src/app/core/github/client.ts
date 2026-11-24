@@ -59,6 +59,24 @@ export interface GitHubReleaseAsset {
   browser_download_url: string;
 }
 
+export interface GitHubTreeEntry {
+  path: string;
+  type: 'blob' | 'tree' | 'commit';
+  sha: string;
+  size?: number;
+}
+
+/** An HTTP error from the GitHub API, carrying the status for callers that branch on it. */
+export class GitHubError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'GitHubError';
+  }
+}
+
 @Injectable({ providedIn: 'root' })
 export class GitHubClient {
   private readonly auth = inject(GitHubAuthService);
@@ -77,7 +95,7 @@ export class GitHubClient {
   private async json<T>(res: Response): Promise<T> {
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      throw new Error(`GitHub ${res.status} ${res.statusText}: ${text.slice(0, 300)}`);
+      throw new GitHubError(res.status, `GitHub ${res.status} ${res.statusText}: ${text.slice(0, 300)}`);
     }
     return res.json() as Promise<T>;
   }
@@ -90,7 +108,10 @@ export class GitHubClient {
     ).then((all) => (prefixFilter ? all.filter((r) => r.name.startsWith(prefixFilter)) : all));
   }
 
-  async createUserRepo(name: string, opts: { description?: string; private?: boolean } = {}): Promise<GitHubRepo> {
+  async createUserRepo(
+    name: string,
+    opts: { description?: string; private?: boolean; autoInit?: boolean } = {},
+  ): Promise<GitHubRepo> {
     const res = await fetch(`${API_BASE}/user/repos`, {
       method: 'POST',
       headers: this.headers(),
@@ -98,7 +119,7 @@ export class GitHubClient {
         name,
         description: opts.description ?? 'archaeo-pro storage',
         private: opts.private ?? true,
-        auto_init: true,
+        auto_init: opts.autoInit ?? true,
       }),
     });
     return this.json<GitHubRepo>(res);
@@ -228,7 +249,37 @@ export class GitHubClient {
       `${API_BASE}/repos/${ref.owner}/${ref.name}/contents/${encodeURI(path)}`,
       { method: 'DELETE', headers: this.headers(), body: JSON.stringify({ message, sha }) },
     );
-    if (!res.ok) throw new Error(`Failed to delete ${path}: ${res.status}`);
+    if (!res.ok) throw new GitHubError(res.status, `Failed to delete ${path}: ${res.status}`);
+  }
+
+  // ---- git data (used by the offline mirror) ---------------------------
+
+  /**
+   * The whole file tree of the default branch in one request. Blob shas are
+   * the same shas the Contents API returns, so they tell the offline mirror
+   * which files changed. Returns null for an empty or missing repo.
+   */
+  async getTree(ref: RepoRef): Promise<GitHubTreeEntry[] | null> {
+    const res = await fetch(
+      `${API_BASE}/repos/${ref.owner}/${ref.name}/git/trees/HEAD?recursive=1`,
+      { headers: this.headers() },
+    );
+    if (res.status === 404 || res.status === 409) return null;
+    const body = await this.json<{ tree: GitHubTreeEntry[]; truncated: boolean }>(res);
+    if (body.truncated) {
+      throw new GitHubError(413, `Tree of ${ref.owner}/${ref.name} is too large to mirror in one request.`);
+    }
+    return body.tree;
+  }
+
+  /** A blob's bytes by sha, any size up to 100 MB. */
+  async getBlobBySha(ref: RepoRef, sha: string, contentType = 'application/octet-stream'): Promise<Blob> {
+    const res = await fetch(`${API_BASE}/repos/${ref.owner}/${ref.name}/git/blobs/${sha}`, {
+      headers: this.headers({ Accept: 'application/vnd.github.raw+json' }),
+    });
+    if (!res.ok) throw new GitHubError(res.status, `Blob ${sha} download failed: ${res.status}`);
+    const buf = await res.arrayBuffer();
+    return new Blob([buf], { type: contentType });
   }
 
   // ---- releases (used for photo binaries) ------------------------------

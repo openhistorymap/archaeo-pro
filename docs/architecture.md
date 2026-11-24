@@ -99,6 +99,36 @@ reading the index repo. That's fine for a single archaeologist's worth of
 data; if a multi-user / studio model lands later, an index service can be
 added without disturbing the per-survey repos.
 
+## Offline-first
+
+GitHub is the system of record, but the app never talks to it directly for
+data. Every read and write goes through a device-local mirror in IndexedDB
+(Dexie), in `frontend/src/app/core/offline/`:
+
+- **`RepoFs`** — the file API the stores use (read, list, write, delete,
+  binaries). Writes land in the mirror at once. Reads refresh a repo from
+  GitHub when online and the copy is older than a minute (one
+  `git/trees/HEAD?recursive=1` request plus one request per changed text
+  file); offline they are served from the mirror. Photos and tavole are
+  fetched on first view and then kept.
+- **`SyncService`** — drains the outbox to GitHub in the order the edits were
+  made: on reconnect, every 30 s, when the app returns to the foreground, and
+  shortly after each edit. Repeated edits to one file become one commit. A
+  surveillance created offline gets its repo created (empty) by the first
+  sync, before its files are pushed.
+- **Conflicts** — if a file changed on GitHub while a local edit was waiting,
+  the remote version is saved in the `conflicts` table and the field edit
+  wins. Nothing is discarded; the top-bar badge counts the saved versions.
+  (No UI to compare them yet.)
+- **App shell** — the Angular service worker (`ngsw-config.json`, production
+  web builds only, not in Tauri) caches the app and the WMS tiles already
+  viewed (30 days, 4,000 tiles), so the PWA opens and shows the last-seen
+  map in the field. Areas never viewed online have no basemap offline.
+
+What needs a connection: the first login, the first opening of the index and
+of each surveillance on a device, DOCX/PDF rendering, and WMS areas not
+already viewed.
+
 ## OHM export
 
 `exports/ohm.geojson` is a FeatureCollection of the surveillance's findings

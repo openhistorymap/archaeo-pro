@@ -5,7 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { ApiService } from '../../core/api.service';
 import { PhotoThumb } from '../../core/components/photo-thumb';
-import { GitHubClient, RepoRef } from '../../core/github/client';
+import { RepoRef } from '../../core/github/client';
 import { IndexRepoService } from '../../core/storage/index-repo';
 import { SurveillanceStore } from '../../core/storage/surveillance-store';
 import { Photo, Surveillance, SurveillanceStatus, Tavola } from '../../core/types/surveillance';
@@ -23,7 +23,6 @@ export class SurveillanceDetail {
   private readonly index = inject(IndexRepoService);
   private readonly store = inject(SurveillanceStore);
   private readonly api = inject(ApiService);
-  private readonly gh = inject(GitHubClient);
 
   readonly loading = signal(true);
   readonly busy = signal(false);
@@ -176,7 +175,7 @@ export class SurveillanceDetail {
         for (const p of s.photos) {
           if (!p.path) continue;
           try {
-            const blob = await this.gh.getBinaryFile(ref, p.path, p.content_type ?? 'image/jpeg');
+            const blob = await this.store.getBinary(ref, p.path, p.content_type ?? 'image/jpeg');
             if (blob) photoBlobs.set(p.id, blob);
           } catch {
             // skip — render will surface "[immagine non trasmessa]"
@@ -185,7 +184,7 @@ export class SurveillanceDetail {
         for (const t of s.tavole) {
           if (!t.path) continue;
           try {
-            const blob = await this.gh.getBinaryFile(ref, t.path, t.content_type ?? 'image/png');
+            const blob = await this.store.getBinary(ref, t.path, t.content_type ?? 'image/png');
             if (!blob) continue;
             // Defensively resize: legacy tavole pre-dating the save-time
             // shrink can be 5+ MB each, which would blow Vercel's multipart
@@ -199,7 +198,7 @@ export class SurveillanceDetail {
         // Legacy fallback: a pre-Tavola survey may still have exports/map.png.
         // Only used by the docgen when no Tavola(kind='insieme') exists.
         try {
-          mapImage = await this.gh.getBinaryFile(ref, 'exports/map.png', 'image/png');
+          mapImage = await this.store.getBinary(ref, 'exports/map.png', 'image/png');
         } catch {
           mapImage = null;
         }

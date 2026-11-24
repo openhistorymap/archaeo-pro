@@ -18,6 +18,12 @@
   z-index: 10;
 }
 
+.shell__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
 /* --- Brand mark ----------------------------------------------------- */
 
 .brand {

@@ -1,6 +1,7 @@
 import { Component, OnDestroy, OnInit, computed, inject, input, signal } from '@angular/core';
 
-import { GitHubClient, RepoRef } from '../github/client';
+import { RepoRef } from '../github/client';
+import { RepoFs } from '../offline/repo-fs';
 
 /**
  * Anything that has a binary path in a surveillance repo plus a content
@@ -73,7 +74,7 @@ export interface Thumbable {
   `],
 })
 export class PhotoThumb implements OnInit, OnDestroy {
-  private readonly gh = inject(GitHubClient);
+  private readonly fs = inject(RepoFs);
 
   readonly photo = input.required<Thumbable>();
   readonly repo = input.required<RepoRef>();
@@ -91,7 +92,7 @@ export class PhotoThumb implements OnInit, OnDestroy {
       return;
     }
     try {
-      const blob = await this.gh.getBinaryFile(this.repo(), path, this.photo().content_type ?? 'image/jpeg');
+      const blob = await this.fs.getBlob(this.repo(), path, this.photo().content_type ?? 'image/jpeg');
       if (!blob) {
         this.error.set(true);
         return;
