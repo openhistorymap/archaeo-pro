@@ -39,7 +39,7 @@ class WmsSource:
 
 _PCN = "http://wms.pcn.minambiente.it/ogc"
 _VIR = "https://vincoliinrete.beniculturali.it/geoserver/ows"
-_ISPRA_CARG = "https://sgi2.isprambiente.it/arcgis/services/raster/geo_50k_italia/ImageServer/WMSServer"
+_ISPRA_CARG = "http://sgi2.isprambiente.it/arcgis/services/raster/geo_50k_italia/ImageServer/WMSServer"
 
 
 SOURCES: dict[str, WmsSource] = {
