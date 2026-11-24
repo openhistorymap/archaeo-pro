@@ -129,6 +129,38 @@ What needs a connection: the first login, the first opening of the index and
 of each surveillance on a device, DOCX/PDF rendering, and WMS areas not
 already viewed.
 
+## Team work
+
+A surveillance is shared through GitHub's own collaborators on its repo; no
+server keeps any of it.
+
+- **Roles** are GitHub permissions: *amministratore* (admin: invites people,
+  owns visibility), *collaboratore* (push), *lettura* (pull). The surveillance
+  page's "Collaboratori" block, for administrators, invites by GitHub username
+  and removes people or pending invitations.
+- **Invitations** are listed and answered on the register page.
+- **"Condivise con me"**: repos with the `archaeo-pro-` prefix where the user
+  is a collaborator, mixed into the register and cached in the `shared`
+  table for offline use. A collaborator's saves never touch the owner's
+  index (they have no access to it); the owner's index catches up when the
+  owner saves.
+- **Read-only** users get the role recorded per repo in the mirror, and
+  `RepoFs` refuses writes on the device, so nothing queues that GitHub would
+  reject later.
+- **Attribution** is the commit history: every edit is a commit by whoever
+  made it.
+
+**Merging.** Every mirrored text file keeps `base`, the last version GitHub
+and this device agreed on. When a push finds the file changed on GitHub,
+`sync.service` merges the two JSON versions against that base, field by field
+(`offline/merge.ts`): lists of records with an identity (`presenze` by name,
+findings by id…) merge record by record; `updated_at` takes the later value.
+Clean merges are pushed silently. A field changed on both sides keeps this
+device's value and becomes a conflict, listed on `/conflitti` (the top-bar
+badge links there) with both values, to keep or swap. Files that can't be
+merged (photos, non-JSON, or files mirrored before `base` existed and not yet
+refreshed) keep the local version and save the remote one whole, as before.
+
 ## Template GNA export
 
 Under DG ABAP circulars 9/2024 and 22/2024 the minimum data of every

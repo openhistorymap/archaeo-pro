@@ -14,6 +14,10 @@ top-level pointers to the rest of the project.
   `core/offline/RepoFs` (Dexie mirror) and `SyncService` (ordered outbox,
   field edit wins, remote copy kept in `conflicts`). New storage code must use
   `RepoFs`, not `GitHubClient`. See "Offline-first" in `docs/architecture.md`.
+- **Team work**: sharing = GitHub collaborators on the surveillance repo
+  (`core/storage/sharing.ts`); concurrent edits merge field by field against
+  the stored `base` (`core/offline/merge.ts`), clashes go to `/conflitti`.
+  See "Team work" in `docs/architecture.md`.
 - **Template GNA**: `features/gna-export` + backend `routers/gna.py`. The
   official template is downloaded at runtime, never committed (no stated
   redistribution licence). Field names are GNA codes; rules follow the

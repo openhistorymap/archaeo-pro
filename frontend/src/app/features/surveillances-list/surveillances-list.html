@@ -14,6 +14,23 @@
     <a routerLink="/new" class="btn btn--primary">+ Nuova sorveglianza</a>
   </header>
 
+  @if (invitations().length > 0) {
+    <ul class="invites" aria-label="Inviti a collaborare">
+      @for (inv of invitations(); track inv.id) {
+        <li class="invite">
+          <p class="invite__text">
+            <b>&#64;{{ inv.inviter?.login }}</b> ti invita a collaborare a una sorveglianza
+            (<span class="tabular">{{ inv.repository.full_name }}</span>, {{ roleLabel(inv.permissions) }}).
+          </p>
+          <div class="invite__actions">
+            <button type="button" class="btn btn--primary btn--sm" [disabled]="answering()" (click)="answer(inv, true)">Accetta</button>
+            <button type="button" class="btn btn--quiet btn--sm" [disabled]="answering()" (click)="answer(inv, false)">Rifiuta</button>
+          </div>
+        </li>
+      }
+    </ul>
+  }
+
   @if (loading()) {
     <p class="registry__state muted">Lettura dell’indice GitHub…</p>
   } @else if (error()) {
@@ -81,6 +98,10 @@
               }
               <span class="entry__sep" aria-hidden="true">·</span>
               <span class="entry__dates tabular">{{ formatRange(s) }}</span>
+              @if (s.shared) {
+                <span class="entry__sep" aria-hidden="true">·</span>
+                <span class="entry__shared">condivisa da &#64;{{ s.repo.owner }} · {{ roleLabel(s.permission) }}</span>
+              }
             </p>
           </a>
           <span class="entry__status" [attr.data-status]="s.status">{{ statusLabel(s.status) }}</span>

@@ -37,6 +37,11 @@ export const routes: Routes = [
       import('./features/surveillance-map/surveillance-map').then((m) => m.SurveillanceMap),
   },
   {
+    path: 'conflitti',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/conflicts/conflicts').then((m) => m.ConflictsPage),
+  },
+  {
     path: 'surveillances/:id/gna',
     canActivate: [authGuard],
     loadComponent: () => import('./features/gna-export/gna-export').then((m) => m.GnaExport),

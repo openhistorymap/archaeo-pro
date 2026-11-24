@@ -15,6 +15,7 @@ import { GitHubAuthService } from '../github/auth.service';
 import { GitHubClient, RepoRef } from '../github/client';
 import { OfflineUnavailableError } from '../offline/db';
 import { RepoFs } from '../offline/repo-fs';
+import { SharingService } from './sharing';
 
 const INDEX_REPO_NAME = 'archaeo-pro-index';
 const INDEX_REPO_DESCRIPTION =
@@ -36,6 +37,7 @@ export class IndexRepoService {
   private readonly gh = inject(GitHubClient);
   private readonly auth = inject(GitHubAuthService);
   private readonly fs = inject(RepoFs);
+  private readonly sharing = inject(SharingService);
 
   /**
    * The index repo, created on GitHub if this account has none yet. Creating
@@ -74,9 +76,11 @@ export class IndexRepoService {
     return ref;
   }
 
+  /** A surveillance by id: one of the user's own, or one shared with them. */
   async getEntry(id: string): Promise<SurveillanceIndexEntry | null> {
     const ref = await this.bootstrap();
-    return this.fs.getJson<SurveillanceIndexEntry>(ref, `surveillances/${id}.json`);
+    const own = await this.fs.getJson<SurveillanceIndexEntry>(ref, `surveillances/${id}.json`);
+    return own ?? this.sharing.getShared(id);
   }
 
   async listEntries(): Promise<SurveillanceIndexEntry[]> {

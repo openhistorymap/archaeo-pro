@@ -53,6 +53,12 @@
           }
         </div>
       </div>
+      @if (readOnly()) {
+        <p class="readonly-note">
+          Sola lettura: &#64;{{ ref()?.owner }} ha condiviso questa sorveglianza con te in consultazione.
+          Puoi aprirla e scaricare i documenti, ma non modificarla.
+        </p>
+      }
     </header>
 
     <section class="block">
@@ -313,6 +319,53 @@
       }
     </section>
 
+    @if (members(); as list) {
+      <section class="block">
+        <header class="block__head">
+          <h2 class="block__title">
+            <span class="block__num">⁂</span>
+            Collaboratori
+            <span class="block__count">({{ list.length }})</span>
+          </h2>
+        </header>
+        <p class="block__hint muted">
+          Chi inviti riceve l'invito su GitHub e lo trova anche in archaeo·pro. Ogni modifica resta firmata
+          da chi l'ha fatta, nella cronologia del repository.
+        </p>
+        <ul class="members">
+          @for (m of list; track m.login) {
+            <li class="member">
+              <span class="member__login">&#64;{{ m.login }}</span>
+              <span class="member__role">{{ roleLabel(m.role) }}{{ m.pending ? ' · invito in attesa' : '' }}</span>
+              @if (m.login.toLowerCase() !== ref()?.owner?.toLowerCase()) {
+                <button type="button" class="btn btn--quiet btn--sm" (click)="removeMember(m)">
+                  {{ m.pending ? 'Annulla invito' : 'Rimuovi' }}
+                </button>
+              }
+            </li>
+          }
+        </ul>
+        <form class="invite-form" (ngSubmit)="invite()">
+          <label class="field">
+            <span class="field__label">Utente GitHub</span>
+            <input type="text" name="login" [(ngModel)]="inviteLogin" placeholder="nome-utente" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span class="field__label">Ruolo</span>
+            <select name="role" [(ngModel)]="inviteRole">
+              @for (r of shareRoles; track r.value) {
+                <option [ngValue]="r.value">{{ r.label }} · {{ r.hint }}</option>
+              }
+            </select>
+          </label>
+          <button type="submit" class="btn btn--ghost" [disabled]="!inviteLogin.trim()">Invita</button>
+        </form>
+        @if (shareError()) {
+          <p class="form__error">{{ shareError() }}</p>
+        }
+      </section>
+    }
+
     @if (error()) {
       <p class="form__error">{{ error() }}</p>
     }
@@ -366,7 +419,7 @@
              pulsante quando il servizio Gotenberg sarà pubblicato.
         <button type="button" class="btn btn--ghost" [disabled]="busy()" (click)="generate('pdf')">PDF</button>
         -->
-        <button type="button" class="btn btn--primary" [disabled]="busy()" (click)="save()">Salva</button>
+        <button type="button" class="btn btn--primary" [disabled]="busy() || readOnly()" (click)="save()">Salva</button>
       </div>
     </div>
   }

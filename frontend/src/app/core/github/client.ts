@@ -24,6 +24,36 @@ export interface GitHubRepo {
   private: boolean;
   html_url: string;
   default_branch: string;
+  owner?: { login: string };
+  /** The authenticated user's access, present when listed or fetched with a token. */
+  permissions?: {
+    admin: boolean;
+    maintain?: boolean;
+    push: boolean;
+    triage?: boolean;
+    pull: boolean;
+  };
+}
+
+/** GitHub's repository roles, as the collaborators API names them. */
+export type GitHubRole = 'pull' | 'triage' | 'push' | 'maintain' | 'admin';
+
+export interface GitHubCollaborator {
+  login: string;
+  avatar_url: string;
+  /** e.g. "admin", "write", "read". */
+  role_name?: string;
+  permissions?: { admin: boolean; push: boolean; pull: boolean };
+}
+
+export interface GitHubRepoInvitation {
+  id: number;
+  invitee?: { login: string } | null;
+  inviter?: { login: string } | null;
+  /** "read" | "triage" | "write" | "maintain" | "admin" */
+  permissions: string;
+  repository: { name: string; full_name: string; owner: { login: string }; private: boolean };
+  created_at: string;
 }
 
 export interface GitHubContentItem {
@@ -55,7 +85,7 @@ export interface GitHubReleaseAsset {
   name: string;
   size: number;
   content_type: string;
-  url: string;          // API URL — fetch with Accept: application/octet-stream to download
+  url: string; // API URL — fetch with Accept: application/octet-stream to download
   browser_download_url: string;
 }
 
@@ -95,17 +125,80 @@ export class GitHubClient {
   private async json<T>(res: Response): Promise<T> {
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      throw new GitHubError(res.status, `GitHub ${res.status} ${res.statusText}: ${text.slice(0, 300)}`);
+      throw new GitHubError(
+        res.status,
+        `GitHub ${res.status} ${res.statusText}: ${text.slice(0, 300)}`,
+      );
     }
     return res.json() as Promise<T>;
   }
 
   // ---- repos -----------------------------------------------------------
 
-  listUserRepos(prefixFilter?: string): Promise<GitHubRepo[]> {
+  listUserRepos(
+    prefixFilter?: string,
+    affiliation: 'owner' | 'collaborator' | 'organization_member' = 'owner',
+  ): Promise<GitHubRepo[]> {
     return this.paginate<GitHubRepo>(
-      `${API_BASE}/user/repos?per_page=100&affiliation=owner&sort=updated`,
+      `${API_BASE}/user/repos?per_page=100&affiliation=${affiliation}&sort=updated`,
     ).then((all) => (prefixFilter ? all.filter((r) => r.name.startsWith(prefixFilter)) : all));
+  }
+
+  // ---- collaborators and invitations -------------------------------------
+
+  /** People with direct access to the repo (the owner included). */
+  listCollaborators(ref: RepoRef): Promise<GitHubCollaborator[]> {
+    return this.paginate<GitHubCollaborator>(
+      `${API_BASE}/repos/${ref.owner}/${ref.name}/collaborators?affiliation=direct&per_page=100`,
+    );
+  }
+
+  /** Invite someone (or change their role). GitHub sends them an invitation to accept. */
+  async addCollaborator(ref: RepoRef, login: string, permission: GitHubRole): Promise<void> {
+    const res = await fetch(
+      `${API_BASE}/repos/${ref.owner}/${ref.name}/collaborators/${encodeURIComponent(login)}`,
+      { method: 'PUT', headers: this.headers(), body: JSON.stringify({ permission }) },
+    );
+    if (res.status === 201 || res.status === 204) return;
+    await this.json(res);
+  }
+
+  async removeCollaborator(ref: RepoRef, login: string): Promise<void> {
+    const res = await fetch(
+      `${API_BASE}/repos/${ref.owner}/${ref.name}/collaborators/${encodeURIComponent(login)}`,
+      { method: 'DELETE', headers: this.headers() },
+    );
+    if (!res.ok && res.status !== 404) await this.json(res);
+  }
+
+  /** Invitations sent for this repo and not accepted yet. */
+  listRepoInvitations(ref: RepoRef): Promise<GitHubRepoInvitation[]> {
+    return this.paginate<GitHubRepoInvitation>(
+      `${API_BASE}/repos/${ref.owner}/${ref.name}/invitations?per_page=100`,
+    );
+  }
+
+  async cancelRepoInvitation(ref: RepoRef, id: number): Promise<void> {
+    const res = await fetch(`${API_BASE}/repos/${ref.owner}/${ref.name}/invitations/${id}`, {
+      method: 'DELETE',
+      headers: this.headers(),
+    });
+    if (!res.ok && res.status !== 404) await this.json(res);
+  }
+
+  /** Invitations addressed to the signed-in user. */
+  listMyInvitations(): Promise<GitHubRepoInvitation[]> {
+    return this.paginate<GitHubRepoInvitation>(
+      `${API_BASE}/user/repository_invitations?per_page=100`,
+    );
+  }
+
+  async answerInvitation(id: number, accept: boolean): Promise<void> {
+    const res = await fetch(`${API_BASE}/user/repository_invitations/${id}`, {
+      method: accept ? 'PATCH' : 'DELETE',
+      headers: this.headers(),
+    });
+    if (!res.ok) await this.json(res);
   }
 
   async createUserRepo(
@@ -126,7 +219,9 @@ export class GitHubClient {
   }
 
   async getRepo(ref: RepoRef): Promise<GitHubRepo | null> {
-    const res = await fetch(`${API_BASE}/repos/${ref.owner}/${ref.name}`, { headers: this.headers() });
+    const res = await fetch(`${API_BASE}/repos/${ref.owner}/${ref.name}`, {
+      headers: this.headers(),
+    });
     if (res.status === 404) return null;
     return this.json<GitHubRepo>(res);
   }
@@ -221,7 +316,11 @@ export class GitHubClient {
    * Files larger than ~1 MB return without inline content; we then fall
    * back to download_url + auth header for the actual bytes.
    */
-  async getBinaryFile(ref: RepoRef, path: string, contentType = 'image/jpeg'): Promise<Blob | null> {
+  async getBinaryFile(
+    ref: RepoRef,
+    path: string,
+    contentType = 'image/jpeg',
+  ): Promise<Blob | null> {
     const res = await fetch(
       `${API_BASE}/repos/${ref.owner}/${ref.name}/contents/${encodeURI(path)}`,
       { headers: this.headers() },
@@ -267,13 +366,20 @@ export class GitHubClient {
     if (res.status === 404 || res.status === 409) return null;
     const body = await this.json<{ tree: GitHubTreeEntry[]; truncated: boolean }>(res);
     if (body.truncated) {
-      throw new GitHubError(413, `Tree of ${ref.owner}/${ref.name} is too large to mirror in one request.`);
+      throw new GitHubError(
+        413,
+        `Tree of ${ref.owner}/${ref.name} is too large to mirror in one request.`,
+      );
     }
     return body.tree;
   }
 
   /** A blob's bytes by sha, any size up to 100 MB. */
-  async getBlobBySha(ref: RepoRef, sha: string, contentType = 'application/octet-stream'): Promise<Blob> {
+  async getBlobBySha(
+    ref: RepoRef,
+    sha: string,
+    contentType = 'application/octet-stream',
+  ): Promise<Blob> {
     const res = await fetch(`${API_BASE}/repos/${ref.owner}/${ref.name}/git/blobs/${sha}`, {
       headers: this.headers({ Accept: 'application/vnd.github.raw+json' }),
     });
@@ -340,7 +446,7 @@ export class GitHubClient {
       out.push(...items);
       const link = res.headers.get('link') ?? '';
       const next = link.split(',').find((p) => p.includes('rel="next"'));
-      url = next ? next.match(/<([^>]+)>/)?.[1] ?? null : null;
+      url = next ? (next.match(/<([^>]+)>/)?.[1] ?? null) : null;
     }
     return out;
   }

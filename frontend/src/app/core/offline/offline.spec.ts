@@ -3,7 +3,8 @@ import { IDBKeyRange, indexedDB } from 'fake-indexeddb';
 
 import { GitHubAuthService } from '../github/auth.service';
 import { GitHubClient, GitHubError, RepoRef } from '../github/client';
-import { OFFLINE_DB, OfflineDb, OfflineUnavailableError, fileKey } from './db';
+import { OFFLINE_DB, OfflineDb, OfflineUnavailableError, ReadOnlyError, fileKey } from './db';
+import { ConflictService } from './conflicts';
 import { RepoFs } from './repo-fs';
 import { SyncService } from './sync.service';
 
@@ -244,5 +245,104 @@ describe('offline-first storage', () => {
     sync.online.set(false);
     const again = await fs.getBlob(ref, 'photos/p.jpg', 'image/jpeg');
     expect(await again!.text()).toBe('JPEGBYTES');
+  });
+
+  describe('two people on the same surveillance', () => {
+    async function goOffline() {
+      gh.offline = true;
+      sync.online.set(false);
+    }
+    async function goOnlineAndSync() {
+      gh.offline = false;
+      sync.online.set(true);
+      await sync.flush();
+    }
+
+    it('merges edits to different fields of the same file without a conflict', async () => {
+      gh.seed(ref, { 'surveillance.json': JSON.stringify({ title: 'A', comune: 'Bologna' }) });
+      await fs.ready(ref);
+      await goOffline();
+      await fs.putJson(ref, 'surveillance.json', { title: 'B', comune: 'Bologna' }, 'edit');
+
+      gh.editRemotely(ref, 'surveillance.json', JSON.stringify({ title: 'A', comune: 'Imola' }));
+      await goOnlineAndSync();
+
+      expect(JSON.parse(gh.body(ref, 'surveillance.json')!)).toEqual({
+        title: 'B',
+        comune: 'Imola',
+      });
+      expect(await fs.getJson(ref, 'surveillance.json')).toEqual({ title: 'B', comune: 'Imola' });
+      expect(sync.conflicts()).toBe(0);
+    });
+
+    it('records the field both changed, keeps mine, and lets a person put theirs back', async () => {
+      gh.seed(ref, {
+        'daily/2026-11-24.json': JSON.stringify({ operazioni: 'scavo', meteo: 'sole' }),
+      });
+      await fs.ready(ref);
+      await goOffline();
+      await fs.putJson(
+        ref,
+        'daily/2026-11-24.json',
+        { operazioni: 'trincea 1', meteo: 'sole' },
+        'edit',
+      );
+
+      gh.editRemotely(
+        ref,
+        'daily/2026-11-24.json',
+        JSON.stringify({ operazioni: 'trincea 2', meteo: 'pioggia' }),
+      );
+      await goOnlineAndSync();
+
+      expect(JSON.parse(gh.body(ref, 'daily/2026-11-24.json')!)).toEqual({
+        operazioni: 'trincea 1',
+        meteo: 'pioggia',
+      });
+      const [c] = await db.conflicts.toArray();
+      expect(c.clashes).toEqual([{ path: 'operazioni', mine: 'trincea 1', theirs: 'trincea 2' }]);
+      expect(sync.conflicts()).toBe(1);
+
+      const conflicts = TestBed.inject(ConflictService);
+      await conflicts.useTheirs(c, 0);
+      await sync.flush();
+      expect(JSON.parse(gh.body(ref, 'daily/2026-11-24.json')!).operazioni).toBe('trincea 2');
+      expect(sync.conflicts()).toBe(0);
+    });
+
+    it('joins two people who opened the same day offline', async () => {
+      gh.seed(ref, {});
+      await fs.ready(ref);
+      await goOffline();
+      await fs.putJson(
+        ref,
+        'daily/2026-11-25.json',
+        { date: '2026-11-25', presenze: [{ name: 'Rossi' }] },
+        'add',
+      );
+
+      gh.editRemotely(
+        ref,
+        'daily/2026-11-25.json',
+        JSON.stringify({ date: '2026-11-25', presenze: [{ name: 'Verdi' }] }),
+      );
+      await goOnlineAndSync();
+
+      const names = JSON.parse(gh.body(ref, 'daily/2026-11-25.json')!).presenze.map(
+        (p: { name: string }) => p.name,
+      );
+      expect(names.sort()).toEqual(['Rossi', 'Verdi']);
+      expect(sync.conflicts()).toBe(0);
+    });
+
+    it('refuses edits on the device when the user can only read', async () => {
+      gh.seed(ref, { 'surveillance.json': '{}' });
+      await fs.ready(ref);
+      await fs.setPermission(ref, 'read');
+      await expect(fs.putJson(ref, 'surveillance.json', { a: 1 }, 'edit')).rejects.toBeInstanceOf(
+        ReadOnlyError,
+      );
+      expect(sync.pending()).toBe(0);
+    });
   });
 });

@@ -1,4 +1,5 @@
 import { Component, computed, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
 import { SyncService } from './sync.service';
 
@@ -9,22 +10,36 @@ import { SyncService } from './sync.service';
  */
 @Component({
   selector: 'app-sync-badge',
+  imports: [RouterLink],
   template: `
     @if (label(); as text) {
-      <button
-        type="button"
-        class="sync"
-        [class.sync--offline]="!sync.online()"
-        [class.sync--error]="!!sync.lastError()"
-        [title]="sync.lastError() ?? 'Sincronizza ora'"
-        (click)="sync.flush()"
-        aria-live="polite"
-      >
-        <span class="sync__dot" aria-hidden="true"></span>
-        <span>{{ text }}</span>
-      </button>
+      @if (sync.conflicts() > 0) {
+        <a
+          class="sync sync--error"
+          routerLink="/conflitti"
+          title="Rivedi i campi modificati sia da te sia da un collaboratore"
+          aria-live="polite"
+        >
+          <span class="sync__dot" aria-hidden="true"></span>
+          <span>{{ text }}</span>
+        </a>
+      } @else {
+        <button
+          type="button"
+          class="sync"
+          [class.sync--offline]="!sync.online()"
+          [class.sync--error]="!!sync.lastError()"
+          [title]="sync.lastError() ?? 'Sincronizza ora'"
+          (click)="sync.flush()"
+          aria-live="polite"
+        >
+          <span class="sync__dot" aria-hidden="true"></span>
+          <span>{{ text }}</span>
+        </button>
+      }
     }
   `,
+
   styles: [
     `
       .sync {
@@ -40,6 +55,7 @@ import { SyncService } from './sync.service';
         font: inherit;
         font-size: var(--text-sm);
         cursor: pointer;
+        text-decoration: none;
       }
       .sync:hover {
         color: var(--text);
@@ -72,7 +88,7 @@ export class SyncBadge {
     const queued = n === 1 ? '1 modifica da sincronizzare' : `${n} modifiche da sincronizzare`;
     const kept = this.sync.conflicts();
     const conflicts = kept
-      ? ` · ${kept} ${kept === 1 ? 'versione remota conservata' : 'versioni remote conservate'}`
+      ? ` · ${kept} ${kept === 1 ? 'conflitto da rivedere' : 'conflitti da rivedere'}`
       : '';
     if (!this.sync.online()) return (n ? `Offline · ${queued}` : 'Offline') + conflicts;
     if (this.sync.lastError()) return 'Sincronizzazione sospesa' + conflicts;

@@ -1,20 +1,22 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
-import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { Component, computed, inject, signal } from '@angular/core';
+import { FormControl, FormGroup, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { ApiService } from '../../core/api.service';
 import { PhotoThumb } from '../../core/components/photo-thumb';
 import { geoContextMapUrl } from '../../core/geocontext/geocontext';
 import { RepoRef } from '../../core/github/client';
+import { RepoPermission } from '../../core/offline/db';
 import { IndexRepoService } from '../../core/storage/index-repo';
+import { Member, SHARE_ROLES, ShareRole, SharingService } from '../../core/storage/sharing';
 import { SurveillanceStore } from '../../core/storage/surveillance-store';
 import { Photo, Surveillance, SurveillanceStatus, Tavola } from '../../core/types/surveillance';
 import { resizeSnapshot } from '../../core/utils/image-resize';
 
 @Component({
   selector: 'app-surveillance-detail',
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, PhotoThumb],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterLink, PhotoThumb],
   templateUrl: './surveillance-detail.html',
   styleUrl: './surveillance-detail.scss',
 })
@@ -24,6 +26,7 @@ export class SurveillanceDetail {
   private readonly index = inject(IndexRepoService);
   private readonly store = inject(SurveillanceStore);
   private readonly api = inject(ApiService);
+  private readonly sharing = inject(SharingService);
 
   readonly loading = signal(true);
   readonly busy = signal(false);
@@ -31,6 +34,15 @@ export class SurveillanceDetail {
   readonly surveillance = signal<Surveillance | null>(null);
   readonly ref = signal<RepoRef | null>(null);
   readonly repoUrl = signal<string | null>(null);
+  /** This user's access: undefined until known (own, freshly created surveillances behave as admin). */
+  readonly permission = signal<RepoPermission | undefined>(undefined);
+  readonly readOnly = computed(() => this.permission() === 'read');
+  /** People with access, for administrators; null when not loaded (offline, or not admin). */
+  readonly members = signal<Member[] | null>(null);
+  readonly shareError = signal<string | null>(null);
+  readonly shareRoles = SHARE_ROLES;
+  inviteLogin = '';
+  inviteRole: ShareRole = 'push';
   /** Set after the GeoContext descriptor is written: where the map lives and whether it can load. */
   readonly geoContext = signal<{ visibility: 'public' | 'private' | 'unknown'; mapUrl: string } | null>(null);
 
@@ -75,6 +87,7 @@ export class SurveillanceDetail {
       this.repoUrl.set(entry.repo_url);
       const s = await this.store.loadSurveillance(entry.repo);
       this.surveillance.set(s);
+      void this.loadAccess(entry.repo);
       this.form.patchValue({
         title: s.title,
         protocollo: s.protocollo ?? null,
@@ -98,6 +111,46 @@ export class SurveillanceDetail {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** Who this user is on the repo, and, for administrators, who else has access. */
+  private async loadAccess(ref: RepoRef): Promise<void> {
+    try {
+      const p = await this.sharing.permission(ref);
+      this.permission.set(p);
+      if (p === 'admin') this.members.set(await this.sharing.members(ref));
+    } catch {
+      // offline or not created on GitHub yet: sharing needs a connection
+    }
+  }
+
+  async invite(): Promise<void> {
+    const ref = this.ref();
+    if (!ref || !this.inviteLogin.trim()) return;
+    this.shareError.set(null);
+    try {
+      await this.sharing.invite(ref, this.inviteLogin, this.inviteRole);
+      this.inviteLogin = '';
+      this.members.set(await this.sharing.members(ref));
+    } catch (err) {
+      this.shareError.set(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async removeMember(m: Member): Promise<void> {
+    const ref = this.ref();
+    if (!ref) return;
+    this.shareError.set(null);
+    try {
+      await this.sharing.remove(ref, m);
+      this.members.set(await this.sharing.members(ref));
+    } catch (err) {
+      this.shareError.set(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  roleLabel(role: RepoPermission): string {
+    return role === 'admin' ? 'amministratore' : role === 'write' ? 'collaboratore' : 'lettura';
   }
 
   async save(): Promise<void> {

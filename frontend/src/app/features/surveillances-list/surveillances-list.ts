@@ -3,7 +3,9 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 
 import { GitHubAuthService } from '../../core/github/auth.service';
+import { GitHubRepoInvitation } from '../../core/github/client';
 import { IndexRepoService } from '../../core/storage/index-repo';
+import { SharingService } from '../../core/storage/sharing';
 import { SurveillanceIndexEntry } from '../../core/types/surveillance';
 
 type RegistryFilter = 'active' | 'archived' | 'all';
@@ -25,11 +27,15 @@ export class SurveillancesList {
   private readonly index = inject(IndexRepoService);
   private readonly auth = inject(GitHubAuthService);
   private readonly router = inject(Router);
+  private readonly sharing = inject(SharingService);
 
   readonly user = this.auth.user;
   readonly items = signal<SurveillanceIndexEntry[]>([]);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
+  /** Invitations to someone else's surveillance, waiting for an answer. */
+  readonly invitations = signal<GitHubRepoInvitation[]>([]);
+  readonly answering = signal(false);
 
   readonly filter = signal<RegistryFilter>('active');
   readonly visibleItems = computed<SurveillanceIndexEntry[]>(() => {
@@ -53,12 +59,36 @@ export class SurveillancesList {
     this.loading.set(true);
     this.error.set(null);
     try {
-      this.items.set(await this.index.listEntries());
+      const [own, shared] = await Promise.all([
+        this.index.listEntries(),
+        // Shared surveillances are a bonus: a failure here must not hide the user's own.
+        this.sharing.listShared().catch(() => []),
+      ]);
+      this.items.set([...own, ...shared].sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1)));
+      this.invitations.set(await this.sharing.myInvitations().catch(() => []));
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : String(err));
     } finally {
       this.loading.set(false);
     }
+  }
+
+  async answer(invitation: GitHubRepoInvitation, accept: boolean): Promise<void> {
+    this.answering.set(true);
+    try {
+      await this.sharing.answer(invitation, accept);
+      await this.refresh();
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : String(err));
+    } finally {
+      this.answering.set(false);
+    }
+  }
+
+  roleLabel(permission: string | undefined): string {
+    if (permission === 'read' || permission === 'triage') return 'sola lettura';
+    if (permission === 'admin') return 'amministratore';
+    return 'collaboratore';
   }
 
   signOut(): void {

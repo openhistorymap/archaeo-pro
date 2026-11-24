@@ -271,3 +271,36 @@
   .entry__repo { grid-area: repo; }
   .entry__title { white-space: normal; }
 }
+
+/* --- Shared surveillances and invitations -------------------------- */
+
+.entry__shared {
+  color: var(--accent);
+  font-size: var(--text-sm);
+}
+
+.invites {
+  list-style: none;
+  margin: 0 0 var(--space-lg);
+  padding: 0;
+  display: grid;
+  gap: var(--space-xs);
+}
+.invite {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  padding: var(--space-sm) var(--space-md);
+  border-left: 3px solid var(--accent);
+  background: var(--accent-quiet);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+.invite__text { margin: 0; font-size: var(--text-sm); }
+.invite__actions { display: flex; gap: var(--space-xs); }
+.invite .btn--sm {
+  font-size: var(--text-xs);
+  padding: 0.4rem 0.75rem;
+  min-height: 44px;
+}

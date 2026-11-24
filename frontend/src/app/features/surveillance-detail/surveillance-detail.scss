@@ -448,3 +448,33 @@ textarea {
   font-variant-numeric: tabular-nums;
   width: 11rem;
 }
+
+/* --- Sharing -------------------------------------------------------- */
+
+.readonly-note {
+  margin: var(--space-md) 0 0;
+  padding: var(--space-sm) var(--space-md);
+  border-left: 3px solid var(--field-finding);
+  background: var(--surface-warm);
+  font-size: var(--text-sm);
+}
+.block__hint { margin: 0; font-size: var(--text-sm); }
+.members { list-style: none; margin: 0; padding: 0; display: grid; }
+.member {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  min-height: 44px;
+  border-bottom: 1px solid var(--rule);
+}
+.member__login { font-weight: 600; }
+.member__role { flex: 1; color: var(--text-soft); font-size: var(--text-sm); }
+.invite-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: var(--space-md);
+  align-items: end;
+}
+@media (max-width: 640px) {
+  .invite-form { grid-template-columns: 1fr; }
+}

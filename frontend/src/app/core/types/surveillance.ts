@@ -247,6 +247,10 @@ export interface SurveillanceIndexEntry {
   /** Owner/name pair for API calls. */
   repo: { owner: string; name: string };
   ohm_published: boolean;
+  /** Shared with this user by someone else (GitHub collaborator access). */
+  shared?: boolean;
+  /** This user's access when shared: 'admin' | 'write' | 'read'. */
+  permission?: 'admin' | 'write' | 'read';
   // Re-stated here even though the interface already has `status` above —
   // this is the index-side mirror, kept in sync by SurveillanceStore.
   created_at: string;

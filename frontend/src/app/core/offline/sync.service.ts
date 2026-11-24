@@ -6,18 +6,29 @@
  * file collapse into one push: the queue holds *which* file to push, and the
  * push sends whatever the mirror holds at that moment.
  *
- * Conflicts: if the file changed on GitHub while a local edit was pending,
- * the remote version is saved to the `conflicts` table and the local edit
- * wins. Nothing is discarded silently.
+ * Conflicts: if a JSON file changed on GitHub while a local edit was pending
+ * (a colleague, or another device), the two versions are merged field by
+ * field against the last version both sides shared (merge.ts). What merges
+ * cleanly is pushed; a field changed on both sides keeps this device's value
+ * and is recorded in `conflicts` for a person to review. Files that can't be
+ * merged (photos, non-JSON) keep the local version and save the remote one
+ * whole. Nothing is discarded silently.
  */
 import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 
 import { GitHubAuthService } from '../github/auth.service';
 import { GitHubClient, GitHubError, RepoRef } from '../github/client';
-import { OFFLINE_DB, OutboxEntry, isNetworkError, isTextPath } from './db';
+import { MirrorFile, OFFLINE_DB, OutboxEntry, isNetworkError, isTextPath } from './db';
+import { mergeJsonText } from './merge';
 
 const FLUSH_INTERVAL_MS = 30_000;
 const FLUSH_DEBOUNCE_MS = 1_500;
+
+function decodeBase64(content: string): string {
+  return new TextDecoder().decode(
+    Uint8Array.from(atob(content.replace(/\n/g, '')), (c) => c.charCodeAt(0)),
+  );
+}
 
 function refOf(repo: string): RepoRef {
   const [owner, name] = repo.split('/');
@@ -37,7 +48,7 @@ export class SyncService {
   readonly syncing = signal(false);
   /** Last error that stopped the queue, in plain words. */
   readonly lastError = signal<string | null>(null);
-  /** Remote versions kept aside after a conflict. */
+  /** Conflicts waiting for a person to review. */
   readonly conflicts = signal(0);
 
   private flushing: Promise<void> | null = null;
@@ -186,7 +197,7 @@ export class SyncService {
   private async push(ref: RepoRef, entry: OutboxEntry): Promise<void> {
     const row = await this.db.files.get(entry.key!);
     if (!row || row.deleted) return; // superseded by a later delete
-    const send = (sha: string | undefined) =>
+    const send = (sha: string | undefined, text?: string) =>
       row.binary
         ? this.gh.putBinaryFile(
             ref,
@@ -195,23 +206,81 @@ export class SyncService {
             entry.message,
             sha,
           )
-        : this.gh.putFile(ref, row.path, row.text ?? '', entry.message, sha);
+        : this.gh.putFile(ref, row.path, text ?? row.text ?? '', entry.message, sha);
 
+    let pushed = row.text;
     let res: { content: { sha: string } };
     try {
       res = await send(row.sha ?? undefined);
     } catch (e) {
       if (!this.isShaMismatch(e)) throw e;
-      const remoteSha = await this.keepRemoteCopy(ref, entry.repo, row.path);
-      res = await send(remoteSha ?? undefined);
+      const merged = row.binary ? null : await this.mergeWithRemote(ref, entry.repo, row);
+      if (merged) {
+        pushed = merged.text;
+        res = await send(merged.sha, merged.text);
+      } else {
+        const remoteSha = await this.keepRemoteCopy(ref, entry.repo, row.path);
+        res = await send(remoteSha ?? undefined);
+      }
     }
     await this.db.transaction('rw', this.db.files, async () => {
       const now = await this.db.files.get(row.key);
       if (!now) return;
-      // If it was edited again while we pushed, a newer put is queued: keep it dirty.
       const unchanged = now.updatedAt === row.updatedAt;
-      await this.db.files.update(row.key, { sha: res.content.sha, dirty: !unchanged });
+      if (row.binary) {
+        // If it was edited again while we pushed, a newer put is queued: keep it dirty.
+        await this.db.files.update(row.key, { sha: res.content.sha, dirty: !unchanged });
+      } else if (unchanged) {
+        await this.db.files.update(row.key, {
+          sha: res.content.sha,
+          base: pushed,
+          text: pushed,
+          dirty: false,
+        });
+      } else {
+        // Edited again while we pushed: replay that newer edit on top of what reached GitHub.
+        const replay =
+          pushed === row.text
+            ? null
+            : mergeJsonText(row.text ?? '{}', now.text ?? '{}', pushed ?? '{}');
+        await this.db.files.update(row.key, {
+          sha: res.content.sha,
+          base: pushed,
+          text: replay?.text ?? now.text,
+          dirty: true,
+        });
+      }
     });
+  }
+
+  /**
+   * Three-way merge of a JSON file with its current GitHub version. Null when
+   * it can't be merged (not JSON, deleted remotely, or no common base known),
+   * so the caller keeps the remote copy whole instead.
+   */
+  private async mergeWithRemote(
+    ref: RepoRef,
+    repo: string,
+    row: MirrorFile,
+  ): Promise<{ text: string; sha: string } | null> {
+    if (row.sha !== null && row.base === undefined) return null; // mirrored before merging existed
+    const remote = await this.gh.getFile(ref, row.path);
+    if (!remote) return null;
+    const theirs = decodeBase64(remote.content);
+    // A file new on both sides (two people opening the same day's log) merges from empty.
+    const result = mergeJsonText(row.sha === null ? null : row.base!, row.text ?? '', theirs);
+    if (!result) return null;
+    if (result.clashes.length) {
+      await this.db.conflicts.add({
+        repo,
+        path: row.path,
+        remoteSha: remote.sha,
+        clashes: result.clashes.map(({ path, mine, theirs }) => ({ path, mine, theirs })),
+        remoteText: theirs,
+        at: Date.now(),
+      });
+    }
+    return { text: result.text, sha: remote.sha };
   }
 
   private async remove(ref: RepoRef, entry: OutboxEntry): Promise<void> {
@@ -246,10 +315,7 @@ export class SyncService {
     if (!remote) return null;
     const conflict = { repo, path, remoteSha: remote.sha, at: Date.now() } as const;
     if (isTextPath(path)) {
-      const text = new TextDecoder().decode(
-        Uint8Array.from(atob(remote.content.replace(/\n/g, '')), (c) => c.charCodeAt(0)),
-      );
-      await this.db.conflicts.add({ ...conflict, remoteText: text });
+      await this.db.conflicts.add({ ...conflict, remoteText: decodeBase64(remote.content) });
     } else {
       const blob = await this.gh.getBlobBySha(ref, remote.sha);
       await this.db.conflicts.add({ ...conflict, remoteData: await blob.arrayBuffer() });
@@ -257,10 +323,15 @@ export class SyncService {
     return remote.sha;
   }
 
+  /** Recount after a person resolved a conflict. */
+  async refreshConflicts(): Promise<void> {
+    await this.refreshCounts();
+  }
+
   private async refreshCounts(): Promise<void> {
     try {
       this.pending.set(await this.db.outbox.count());
-      this.conflicts.set(await this.db.conflicts.count());
+      this.conflicts.set(await this.db.conflicts.filter((c) => !c.resolved).count());
     } catch {
       // database closed (logout, tests): counts stay as they were
     }

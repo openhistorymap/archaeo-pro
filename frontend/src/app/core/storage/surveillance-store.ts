@@ -218,7 +218,8 @@ export class SurveillanceStore {
       'archaeo-pro: update surveillance',
     );
     const me = await this.auth.ensureUser();
-    if (me) {
+    // Only the owner's index lists the surveillance; a collaborator has no access to it.
+    if (me && me.login.toLowerCase() === ref.owner.toLowerCase()) {
       await this.index.putEntry(this.toIndexEntry(updated, this.repoUrl(ref), ref));
     }
   }

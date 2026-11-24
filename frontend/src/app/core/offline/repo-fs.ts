@@ -18,6 +18,8 @@ import {
   MirrorFile,
   OFFLINE_DB,
   OfflineUnavailableError,
+  ReadOnlyError,
+  RepoPermission,
   fileKey,
   isNetworkError,
   isTextPath,
@@ -118,6 +120,16 @@ export class RepoFs {
       const now = Date.now();
       for (const [path, sha] of remote) {
         const mine = await this.db.files.get(fileKey(ref, path));
+        if (
+          mine &&
+          !mine.dirty &&
+          mine.sha === sha &&
+          mine.base === undefined &&
+          mine.text !== undefined
+        ) {
+          // Mirrored before merging existed: what we hold is GitHub's version, so it is the base.
+          await this.db.files.update(mine.key, { base: mine.text });
+        }
         if (mine?.dirty || mine?.sha === sha) continue;
         const binary = !isTextPath(path);
         if (!binary && !texts.has(path)) continue; // changed again mid-refresh; next refresh gets it
@@ -128,6 +140,7 @@ export class RepoFs {
           dir: parentDir(path),
           binary,
           text: binary ? undefined : texts.get(path),
+          base: binary ? undefined : texts.get(path),
           data: undefined, // binaries: refetched on next use
           mime: undefined,
           sha,
@@ -140,8 +153,26 @@ export class RepoFs {
       for (const [path, mine] of local) {
         if (!remote.has(path) && !mine.dirty) await this.db.files.delete(mine.key);
       }
-      await this.db.repos.put({ repo, hydratedAt: now, pendingCreate: false });
+      const known = await this.db.repos.get(repo);
+      await this.db.repos.put({ ...known, repo, hydratedAt: now, pendingCreate: false });
     });
+  }
+
+  // ---- access ----------------------------------------------------------
+
+  /** Record this user's access to a repo; 'read' makes every write fail on the device. */
+  async setPermission(ref: RepoRef, permission: RepoPermission): Promise<void> {
+    const repo = repoKey(ref);
+    const known = await this.db.repos.get(repo);
+    await this.db.repos.put({ hydratedAt: null, pendingCreate: false, ...known, repo, permission });
+  }
+
+  async permission(ref: RepoRef): Promise<RepoPermission | undefined> {
+    return (await this.db.repos.get(repoKey(ref)))?.permission;
+  }
+
+  private async assertWritable(ref: RepoRef): Promise<void> {
+    if ((await this.permission(ref)) === 'read') throw new ReadOnlyError();
   }
 
   // ---- reads -----------------------------------------------------------
@@ -237,6 +268,7 @@ export class RepoFs {
   }
 
   async remove(ref: RepoRef, path: string, message: string): Promise<void> {
+    await this.assertWritable(ref);
     const key = fileKey(ref, path);
     const row = await this.db.files.get(key);
     if (!row || row.deleted) return;
@@ -256,6 +288,7 @@ export class RepoFs {
     body: Pick<MirrorFile, 'binary' | 'text' | 'data' | 'mime'>,
     message: string,
   ): Promise<void> {
+    await this.assertWritable(ref);
     const key = fileKey(ref, path);
     await this.db.transaction('rw', this.db.files, async () => {
       const row = await this.db.files.get(key);
@@ -265,6 +298,7 @@ export class RepoFs {
         path,
         dir: parentDir(path),
         ...body,
+        base: row?.base, // the last GitHub version stays the merge base
         sha: row?.sha ?? null,
         dirty: true,
         deleted: false,

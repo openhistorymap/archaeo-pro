@@ -11,8 +11,11 @@
  *              delete); SyncService drains it whenever the device is online
  *   repos      which repos are mirrored, when they were last refreshed, and
  *              whether the repo itself still has to be created on GitHub
- *   conflicts  the remote version of a file that changed on GitHub while a
- *              local edit was pending; the local edit wins, nothing is lost
+ *   conflicts  when a file changed on GitHub while a local edit was pending:
+ *              the fields that clashed after a three-way merge (merge.ts), or
+ *              the whole remote version for files that can't be merged
+ *   shared     surveillances other people shared with this user (GitHub
+ *              collaborator access), cached so the list works offline
  */
 import { InjectionToken } from '@angular/core';
 import Dexie, { Table } from 'dexie';
@@ -37,6 +40,11 @@ export interface MirrorFile {
   mime?: string;
   /** Blob sha of the version last seen on GitHub; null if never pushed. */
   sha: string | null;
+  /**
+   * Text of that GitHub version: the common base for a three-way merge when
+   * someone else changes the file before this device pushes. Text files only.
+   */
+  base?: string;
   /** A local change not yet pushed. */
   dirty: boolean;
   /** Deleted locally; the delete is not yet pushed. */
@@ -67,16 +75,35 @@ export interface MirrorRepo {
   hydratedAt: number | null;
   /** Created on this device, not yet on GitHub. */
   pendingCreate: boolean;
+  /** This user's access, when known; 'read' blocks writes on the device. */
+  permission?: RepoPermission;
 }
+
+export type RepoPermission = 'admin' | 'write' | 'read';
 
 export interface Conflict {
   id?: number;
   repo: string;
   path: string;
   remoteSha: string;
+  /** Fields both sides changed; mine was kept. Absent: the whole remote version was kept. */
+  clashes?: { path: string; mine: unknown; theirs: unknown }[];
   remoteText?: string;
   remoteData?: ArrayBuffer;
   at: number;
+  /** A person looked at it and chose; resolved conflicts stay as history. */
+  resolved?: boolean;
+}
+
+/** A surveillance shared with this user, as listed when last online. */
+export interface SharedEntry {
+  /** Surveillance id. */
+  id: string;
+  /** `${owner}/${repo}` */
+  repo: string;
+  permission: RepoPermission;
+  /** SurveillanceIndexEntry, kept as stored. */
+  entry: unknown;
 }
 
 export class OfflineDb extends Dexie {
@@ -84,6 +111,7 @@ export class OfflineDb extends Dexie {
   outbox!: Table<OutboxEntry, number>;
   repos!: Table<MirrorRepo, string>;
   conflicts!: Table<Conflict, number>;
+  shared!: Table<SharedEntry, string>;
 
   /** `deps` lets tests supply an in-memory IndexedDB. */
   constructor(
@@ -97,6 +125,7 @@ export class OfflineDb extends Dexie {
       repos: '&repo',
       conflicts: '++id, repo',
     });
+    this.version(2).stores({ shared: '&id, repo' });
   }
 }
 
@@ -128,6 +157,16 @@ export function isTextPath(path: string): boolean {
 /** A fetch that never reached the server: the device is offline or the network dropped. */
 export function isNetworkError(e: unknown): boolean {
   return e instanceof TypeError;
+}
+
+/** Thrown on a write to a surveillance the user can only read. */
+export class ReadOnlyError extends Error {
+  constructor() {
+    super(
+      'Sola lettura: chi ha condiviso questa sorveglianza ti ha dato accesso solo in consultazione.',
+    );
+    this.name = 'ReadOnlyError';
+  }
 }
 
 /** Thrown when data has never been mirrored and the device is offline. */
