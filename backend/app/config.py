@@ -28,6 +28,15 @@ class Settings(BaseSettings):
     # it on /login/oauth/access_token (PKCE alone is GitHub-Apps-only).
     github_client_secret: str | None = None
 
+    # Template GNA (Geoportale Nazionale per l'Archeologia). The template is
+    # fetched from the Ministry at first use and cached in work_dir, so the
+    # repo never redistributes it; bump the URL when ICA releases a new one.
+    # gna_template_zip / gna_vocab_dir point at local copies (tests, offline dev).
+    gna_template_url: str = "https://gna.cultura.gov.it/download/Template_GNA_1.6.0.zip"
+    gna_vocab_base: str = "https://gna.cultura.gov.it/data"
+    gna_template_zip: Path | None = None
+    gna_vocab_dir: Path | None = None
+
     # The WMS source catalog is hardcoded in app/services/wms.py and points
     # at PCN-Geoportale (gn.mase.gov.it) per-product mapfiles. The unified
     # `catalogo.map` advertises every layer in GetCapabilities but its

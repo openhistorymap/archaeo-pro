@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import documents, github_auth, wms_proxy
+from app.routers import documents, github_auth, gna, wms_proxy
 
 app = FastAPI(
     title="archaeo-pro API",
@@ -26,6 +26,7 @@ app.add_middleware(
 app.include_router(wms_proxy.router)
 app.include_router(documents.router)
 app.include_router(github_auth.router)
+app.include_router(gna.router)
 
 
 @app.get("/health")

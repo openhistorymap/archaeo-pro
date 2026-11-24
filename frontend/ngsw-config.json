@@ -7,6 +7,7 @@
     "!/wms/**",
     "!/documents/**",
     "!/auth/github/**",
+    "!/gna/**",
     "!/health",
     "!/health/**"
   ],
@@ -35,6 +36,16 @@
       "cacheConfig": {
         "strategy": "performance",
         "maxSize": 4000,
+        "maxAge": "30d"
+      }
+    },
+    {
+      "name": "gna-vocabularies",
+      "urls": ["/gna/vocab/**"],
+      "cacheConfig": {
+        "strategy": "freshness",
+        "timeout": "5s",
+        "maxSize": 40,
         "maxAge": "30d"
       }
     }

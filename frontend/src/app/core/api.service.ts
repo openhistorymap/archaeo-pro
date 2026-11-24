@@ -12,6 +12,33 @@ import { Observable } from 'rxjs';
 import { apiBase } from './platform';
 import { Surveillance } from './types/surveillance';
 
+export interface GnaVocabRow {
+  key: string;
+  label: string;
+  props: Record<string, unknown>;
+}
+
+export interface GnaIssue {
+  level: 'errore' | 'avviso';
+  where: string;
+  field: string | null;
+  message: string;
+}
+
+export interface GnaCheckResult {
+  ok: boolean;
+  issues: GnaIssue[];
+}
+
+/** Vocabularies whose key/label columns don't follow the `<NAME>_key` / `<NAME>_value` rule. */
+const GNA_KEY_FIELDS: Record<string, [string, string]> = {
+  OGT_MOPR: ['OGT_key', 'OGT_value'],
+  Regioni_tb: ['cod_reg', 'nome'],
+  Province_tb: ['cod_prov', 'sigla'],
+  Comuni_tb: ['pro_com', 'nome'],
+  DTR: ['DTR_key', 'etichetta'],
+};
+
 export interface WmsSource {
   id: string;
   label: string;
@@ -84,6 +111,50 @@ export class ApiService {
     mapImage?: Blob | null,
   ): Promise<Blob> {
     return this.renderDocument(surveillance, photoBlobs, tavolaBlobs, 'pdf', mapImage);
+  }
+
+  // ---- Template GNA ------------------------------------------------------
+
+  /** A GNA controlled vocabulary, as {key, label, ...extra} rows. Cached by the service worker. */
+  async gnaVocab(name: string): Promise<GnaVocabRow[]> {
+    const res = await fetch(`${this.base}/gna/vocab/${encodeURIComponent(name)}`);
+    if (!res.ok) throw new Error(`Vocabolario GNA ${name} non disponibile (${res.status})`);
+    const fc = (await res.json()) as { features: { properties: Record<string, unknown> }[] };
+    const keyField = GNA_KEY_FIELDS[name] ?? [`${name}_key`, `${name}_value`];
+    return fc.features
+      .map((f) => f.properties)
+      .filter((p) => p['ATT'] !== false && p['attivo'] !== false)
+      .map((p) => ({
+        key: String(p[keyField[0]]),
+        label: String(p[keyField[1]] ?? p[keyField[0]]),
+        props: p,
+      }));
+  }
+
+  /** What the Template GNA and the GNA plugin would reject. */
+  async gnaCheck(surveillance: Surveillance): Promise<GnaCheckResult> {
+    const res = await fetch(`${this.base}/gna/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(surveillance),
+    });
+    if (!res.ok) throw new Error(`Controllo GNA non riuscito (${res.status})`);
+    return (await res.json()) as GnaCheckResult;
+  }
+
+  /** The official Template GNA, filled; or the blocking issues. */
+  async gnaPackage(surveillance: Surveillance): Promise<{ zip: Blob } | GnaCheckResult> {
+    const res = await fetch(`${this.base}/gna/package`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(surveillance),
+    });
+    if (res.status === 422) return (await res.json()) as GnaCheckResult;
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      throw new Error(`Pacchetto GNA non generato (${res.status}): ${detail.slice(0, 200)}`);
+    }
+    return { zip: await res.blob() };
   }
 
   private async renderDocument(

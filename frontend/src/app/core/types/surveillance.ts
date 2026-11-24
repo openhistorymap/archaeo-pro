@@ -27,6 +27,86 @@ export interface Finding {
   /** ISO date (YYYY-MM-DD) when the archaeologist recorded the finding.
    * Links this evidenza to a giornale-di-scavo day. */
   recorded_on?: string | null;
+  /** GNA MOSI fields, for the Template GNA export. */
+  gna?: GnaMosi | null;
+}
+
+/*
+ * Template GNA (Geoportale Nazionale per l'Archeologia) — the fields a
+ * surveillance needs beyond what archaeo-pro records anyway. Field names are
+ * the GNA codes; coded values are GNA vocabulary keys as strings. See
+ * backend/app/services/gna_export.py for how they map onto the template.
+ */
+
+/** MOPR: the project, i.e. the surveillance as a whole (AMA = 2, assistenza in corso d'opera). */
+export interface GnaProject {
+  /** Codice progetto; includes the personal code issued by ICA. */
+  CPR?: string | null;
+  /** Enti MiC coinvolti, e.g. "SABAP-BO". */
+  EMC?: string | null;
+  OGN?: string | null;
+  CTG?: string | null;
+  OGT?: string | null;
+  DES?: string | null;
+  /** Soprintendenza (ENTE key). */
+  ENTE?: number | null;
+  /** Funzionari responsabili (FUR keys). */
+  FUR?: string[];
+  /** "Cognome, Nome" */
+  CMC?: string | null;
+  CMR?: string | null;
+  /** ISTAT codes: regione, provincia, comune. */
+  LCR?: number | null;
+  LCP?: number | null;
+  LCC?: number | null;
+  GPT?: string | null;
+  GPM?: string | null;
+  GPBB?: string | null;
+  presa_visione?: boolean;
+}
+
+/** DSC: one investigated area (trench, monitored excavation), positive or negative. */
+export interface GnaDsc {
+  id: string;
+  DSCV: string;
+  /** Defaults to the surveillance area when absent. */
+  geometry?: GeoJSON.Polygon | null;
+  /** Esito: '1' negativo, '2' positivo; derived from the findings when empty. */
+  DSCEX?: string | null;
+  MATS?: boolean;
+  DSCM?: string | null;
+  DSCY?: number | null;
+  /** Profondità massima raggiunta, assoluta (m s.l.m.). */
+  MTAM?: string | null;
+  /** Profondità massima raggiunta, relativa (m). */
+  MTAR?: string | null;
+  /** Quota s.l.m. dello zero di riferimento, required with MTAR. */
+  MTA0?: string | null;
+  MTAS?: string | null;
+  NSC?: string | null;
+  DSCA?: string | null;
+}
+
+/** MOSI: the GNA record of one finding (evidenza). */
+export interface GnaMosi {
+  OGD?: string | null;
+  OGT?: string[];
+  OGB?: string | null;
+  FNTP?: string;
+  OGM?: string;
+  DTR?: string | null;
+  /** Years, BC negative. */
+  DTSI?: number | null;
+  DTSF?: number | null;
+  DTT?: string | null;
+  MTAM?: string | null;
+  MTAX?: string | null;
+  MTAR?: string | null;
+  MTAS?: string | null;
+  GPT?: string | null;
+  GPM?: string | null;
+  GPBB?: string | null;
+  PVL?: string | null;
 }
 
 export interface Photo {
@@ -73,6 +153,10 @@ export interface Surveillance {
   conclusioni?: string | null;
   /** GeoJSON Polygon — the watched area in EPSG:4326. */
   area?: GeoJSON.Polygon | null;
+  /** Template GNA project data (MOPR), saved in surveillance.json. */
+  gna?: GnaProject | null;
+  /** Template GNA investigated areas (DSC), saved in surveillance.json. */
+  gna_dsc?: GnaDsc[] | null;
 
   findings: Finding[];
   photos: Photo[];

@@ -1,0 +1,50 @@
+{
+ "type": "FeatureCollection",
+ "name": "DTR",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "DTR_key": 11,
+    "DTR_value": "Età Romana",
+    "etichetta": "12 - Età Romana (753 a.C. - 476)",
+    "DTSI": -753,
+    "DTSF": 476
+   },
+   "geometry": null
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "DTR_key": 13,
+    "DTR_value": "Età Romano imperiale",
+    "etichetta": "14 - Età Romano imperiale (27 a.C. - 476)",
+    "DTSI": -27,
+    "DTSF": 476
+   },
+   "geometry": null
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "DTR_key": 21,
+    "DTR_value": "non determinabile",
+    "etichetta": "23 - non determinabile",
+    "DTSI": null,
+    "DTSF": null
+   },
+   "geometry": null
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "DTR_key": 24,
+    "DTR_value": "non rilevabile per assenza di tracce archeologiche",
+    "etichetta": "24 - non rilevabile per assenza di tracce archeologiche",
+    "DTSI": null,
+    "DTSF": null
+   },
+   "geometry": null
+  }
+ ]
+}

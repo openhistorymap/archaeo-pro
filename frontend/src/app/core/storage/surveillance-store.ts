@@ -150,6 +150,7 @@ export class SurveillanceStore {
         geometry: feature.geometry ?? null,
         units: [],
         recorded_on: (props.recorded_on as string) ?? null,
+        gna: (props.gna as Finding['gna']) ?? null,
       };
       finding.units = await this.loadUnits(ref, finding.id);
       findings.push(finding);
@@ -230,6 +231,7 @@ export class SurveillanceStore {
         end_date: finding.end_date ?? null,
         tags: finding.tags ?? {},
         recorded_on: finding.recorded_on ?? null,
+        gna: finding.gna ?? null,
       },
     };
     await this.fs.putJson(

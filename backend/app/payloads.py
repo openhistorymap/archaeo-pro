@@ -16,6 +16,29 @@ class StratigraphicUnitPayload(BaseModel):
     materials: str | None = None
 
 
+class GnaMosiPayload(BaseModel):
+    """The GNA MOSI (modulo sito) fields of one finding that archaeo-pro does
+    not otherwise record. Keys are GNA vocabulary keys, as strings."""
+
+    OGD: str | None = None  # definizione
+    OGT: list[str] = Field(default_factory=list)  # tipologia (multi, filtered by OGD)
+    OGB: str | None = None  # situazione attuale
+    FNTP: str = "1"  # fonte: osservazione diretta
+    OGM: str = "12"  # modalità di individuazione: scavo archeologico
+    DTR: str | None = None  # cronologia generica (DTR_key)
+    DTSI: int | None = None  # anno iniziale, a.C. negativo
+    DTSF: int | None = None
+    DTT: str | None = None  # note alla cronologia
+    MTAM: str | None = None  # quota minima s.l.m.
+    MTAX: str | None = None  # quota massima s.l.m.
+    MTAR: str | None = None  # quota relativa
+    MTAS: str | None = None
+    GPT: str | None = None  # overrides the project's positioning method
+    GPM: str | None = None
+    GPBB: str | None = None
+    PVL: str | None = None  # località
+
+
 class FindingPayload(BaseModel):
     id: str
     name: str
@@ -26,6 +49,8 @@ class FindingPayload(BaseModel):
     tags: dict[str, str] = Field(default_factory=dict)
     units: list[StratigraphicUnitPayload] = Field(default_factory=list)
     recorded_on: str | None = None
+    geometry: dict | None = None  # GeoJSON geometry, EPSG:4326
+    gna: GnaMosiPayload | None = None
 
 
 class PhotoPayload(BaseModel):
@@ -74,6 +99,49 @@ class TavolaPayload(BaseModel):
     finding_id: str | None = None
 
 
+class GnaProjectPayload(BaseModel):
+    """The GNA MOPR (modulo di progetto) of a surveillance: what the Template
+    GNA needs beyond what archaeo-pro already records. Coded fields hold GNA
+    vocabulary keys as strings; LCR/LCP/LCC are ISTAT codes."""
+
+    CPR: str | None = None  # codice progetto, includes the personal code issued by ICA
+    EMC: str | None = None  # enti MiC coinvolti, e.g. "SABAP-BO"
+    OGN: str | None = None  # denominazione; defaults to the surveillance title
+    CTG: str | None = None  # categoria opera
+    OGT: str | None = None  # tipo opera (OGT_MOPR, filtered by CTG)
+    DES: str | None = None  # descrizione delle opere; defaults to the premessa
+    ENTE: int | None = None  # SABAP di riferimento
+    FUR: list[str] = Field(default_factory=list)  # funzionari responsabili
+    CMC: str | None = None  # "Cognome, Nome"
+    CMR: str | None = None  # "Cognome, Nome"
+    LCR: int | None = None
+    LCP: int | None = None
+    LCC: int | None = None
+    GPT: str | None = None  # metodo di posizionamento (default for DSC and MOSI)
+    GPM: str | None = None
+    GPBB: str | None = None
+    presa_visione: bool = False
+
+
+class GnaDscPayload(BaseModel):
+    """One investigated area (DSC): a trench or a monitored excavation,
+    recorded whether or not it produced archaeological evidence."""
+
+    id: str
+    DSCV: str  # denominazione dello scavo
+    geometry: dict | None = None  # GeoJSON; defaults to the surveillance area
+    DSCEX: str | None = None  # esito: 1 negativo, 2 positivo; derived from findings if empty
+    MATS: bool = False  # materiali in giacitura secondaria
+    DSCM: str | None = None  # metodo di scavo
+    DSCY: int | None = None  # anno dello scavo
+    MTAM: str | None = None  # profondità massima assoluta
+    MTAR: str | None = None  # profondità massima relativa
+    MTA0: str | None = None  # quota 0 di riferimento, required with MTAR
+    MTAS: str | None = None
+    NSC: str | None = None  # attività e stratigrafia (not the finds)
+    DSCA: str | None = None  # responsabile scientifico, "Cognome, Nome"
+
+
 class SurveillancePayload(BaseModel):
     """Render-ready snapshot of a surveillance. Mirrors the JSON files stored
     in the per-surveillance GitHub repo, flattened into one document."""
@@ -101,3 +169,6 @@ class SurveillancePayload(BaseModel):
     photos: list[PhotoPayload] = Field(default_factory=list)
     days: list[DayLogPayload] = Field(default_factory=list)
     tavole: list[TavolaPayload] = Field(default_factory=list)
+    area: dict | None = None  # GeoJSON Polygon of the watched area
+    gna: GnaProjectPayload | None = None
+    gna_dsc: list[GnaDscPayload] = Field(default_factory=list)

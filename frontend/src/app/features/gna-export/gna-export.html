@@ -1,0 +1,351 @@
+<section class="page">
+  @if (loading()) {
+    <p class="page__state muted">Lettura della sorveglianza e dei vocabolari GNA…</p>
+  } @else if (error() && !surveillance()) {
+    <p class="page__state page__state--error">{{ error() }}</p>
+  } @else if (surveillance(); as s) {
+    <nav class="page__crumbs">
+      <a [routerLink]="['/surveillances', s.id]" class="page__back">← {{ s.title }}</a>
+      <a class="page__repo" href="https://gna.cultura.gov.it/wiki/" target="_blank" rel="noopener">manuale GNA ↗</a>
+    </nav>
+
+    <header class="page__head">
+      <p class="page__eyebrow">Geoportale Nazionale per l'Archeologia</p>
+      <h1 class="page__title">Consegna a GNA</h1>
+      <p class="page__sub muted">
+        Per GNA la sorveglianza è <i>assistenza archeologica in corso d'opera</i>: un progetto (MOPR),
+        le aree indagate (DSC, anche con esito negativo) e una scheda per evidenza (MOSI).
+        Qui compili solo ciò che il Template GNA chiede in più; il pacchetto si apre in QGIS
+        e si invia con il plugin GNA.
+      </p>
+    </header>
+
+    <!-- i. Progetto (MOPR) ----------------------------------------------- -->
+    <fieldset class="form__section">
+      <legend class="form__legend">
+        <span class="form__legend-num">i.</span>
+        <span class="form__legend-title">Progetto</span>
+      </legend>
+      <div class="grid">
+        <label class="field span-2">
+          <span class="field__label">Codice progetto (CPR)</span>
+          <input type="text" [(ngModel)]="project.CPR" placeholder="SABAP-BO_2026_00123-MM_000001" />
+          <span class="field__hint muted">
+            Contiene il codice personale rilasciato da ICA: si chiede a dg-abap.gna&#64;cultura.gov.it,
+            oggetto «Richiesta codice univoco per MOPR».
+          </span>
+        </label>
+        <label class="field">
+          <span class="field__label">Enti MiC coinvolti (EMC)</span>
+          <input type="text" [(ngModel)]="project.EMC" maxlength="25" placeholder="SABAP-BO" />
+        </label>
+        <label class="field">
+          <span class="field__label">Denominazione (OGN)</span>
+          <input type="text" [(ngModel)]="project.OGN" maxlength="500" />
+        </label>
+        <label class="field">
+          <span class="field__label">Categoria dell'opera (CTG)</span>
+          <select [(ngModel)]="project.CTG" (ngModelChange)="onCategory()">
+            <option [ngValue]="null">—</option>
+            @for (o of list('CTG'); track o.key) { <option [ngValue]="o.key">{{ o.label }}</option> }
+          </select>
+        </label>
+        <label class="field">
+          <span class="field__label">Tipo di opera (OGT)</span>
+          <select [(ngModel)]="project.OGT" [disabled]="!project.CTG">
+            <option [ngValue]="null">—</option>
+            @for (o of where('OGT_MOPR', 'CTG_key', project.CTG); track o.key) {
+              <option [ngValue]="o.key">{{ o.label }}</option>
+            }
+          </select>
+        </label>
+        <label class="field span-2">
+          <span class="field__label">Descrizione delle opere (DES)</span>
+          <textarea rows="4" [(ngModel)]="project.DES" maxlength="10000"></textarea>
+        </label>
+
+        <label class="field">
+          <span class="field__label">Regione</span>
+          <select [(ngModel)]="project.LCR" (ngModelChange)="onRegion()">
+            <option [ngValue]="null">—</option>
+            @for (o of list('Regioni_tb'); track o.key) { <option [ngValue]="+o.key">{{ o.label }}</option> }
+          </select>
+        </label>
+        <label class="field">
+          <span class="field__label">Provincia</span>
+          <select [(ngModel)]="project.LCP" (ngModelChange)="onProvince()" [disabled]="!project.LCR">
+            <option [ngValue]="null">—</option>
+            @for (o of where('Province_tb', 'cod_reg', project.LCR); track o.key) {
+              <option [ngValue]="+o.key">{{ o.label }}</option>
+            }
+          </select>
+        </label>
+        <label class="field">
+          <span class="field__label">Comune</span>
+          <select [(ngModel)]="project.LCC" [disabled]="!project.LCP">
+            <option [ngValue]="null">—</option>
+            @for (o of where('Comuni_tb', 'cod_prov', project.LCP); track o.key) {
+              <option [ngValue]="+o.key">{{ o.label }}</option>
+            }
+          </select>
+        </label>
+        <label class="field">
+          <span class="field__label">Soprintendenza (ENTE)</span>
+          <select [(ngModel)]="project.ENTE" (ngModelChange)="onEnte()" [disabled]="!project.LCR">
+            <option [ngValue]="null">—</option>
+            @for (o of where('ENTE', 'cod_reg', project.LCR); track o.key) {
+              <option [ngValue]="+o.key">{{ o.label }}</option>
+            }
+          </select>
+        </label>
+
+        <div class="field span-2">
+          <span class="field__label">Funzionari responsabili (FUR)</span>
+          @if (project.ENTE) {
+            <div class="checks">
+              @for (o of where('FUR', 'ENTE_key', project.ENTE); track o.key) {
+                <label class="check">
+                  <input type="checkbox" [checked]="project.FUR?.includes(o.key)"
+                         (change)="toggleFur(o.key, $any($event.target).checked)" />
+                  {{ o.label }}
+                </label>
+              }
+            </div>
+          } @else {
+            <span class="field__hint muted">Scegli prima la Soprintendenza.</span>
+          }
+        </div>
+
+        <label class="field">
+          <span class="field__label">Responsabile compilazione (CMC)</span>
+          <input type="text" [(ngModel)]="project.CMC" placeholder="Cognome, Nome" />
+        </label>
+        <label class="field">
+          <span class="field__label">Responsabile contenuti (CMR)</span>
+          <input type="text" [(ngModel)]="project.CMR" placeholder="Cognome, Nome" />
+        </label>
+
+        <label class="field">
+          <span class="field__label">Metodo di posizionamento (GPT)</span>
+          <select [(ngModel)]="project.GPT">
+            <option [ngValue]="null">—</option>
+            @for (o of list('GPT'); track o.key) { <option [ngValue]="o.key">{{ o.label }}</option> }
+          </select>
+        </label>
+        <label class="field">
+          <span class="field__label">Precisione (GPM)</span>
+          <select [(ngModel)]="project.GPM">
+            <option [ngValue]="null">—</option>
+            @for (o of list('GPM'); track o.key) { <option [ngValue]="o.key">{{ o.label }}</option> }
+          </select>
+        </label>
+        <label class="field span-2">
+          <span class="field__label">Base cartografica (GPBB)</span>
+          <select [(ngModel)]="project.GPBB">
+            <option [ngValue]="null">—</option>
+            @for (o of list('GPBB'); track o.key) { <option [ngValue]="o.key">{{ o.label }}</option> }
+          </select>
+        </label>
+      </div>
+      @if (!s.area) {
+        <p class="form__error">
+          La sorveglianza non ha ancora un'area: disegnala sulla mappa, diventa l'area di progetto (MOPR).
+        </p>
+      }
+    </fieldset>
+
+    <!-- ii. Aree indagate (DSC) ------------------------------------------ -->
+    <fieldset class="form__section">
+      <legend class="form__legend">
+        <span class="form__legend-num">ii.</span>
+        <span class="form__legend-title">Aree indagate</span>
+      </legend>
+      <p class="field__hint muted">
+        Obbligatorie anche con esito negativo. Senza geometria propria coincidono con l'area della sorveglianza.
+        Dal 2024 va indicata la profondità massima raggiunta.
+      </p>
+      @for (d of dsc; track d.id) {
+        <div class="card">
+          <div class="grid">
+            <label class="field">
+              <span class="field__label">Denominazione (DSCV)</span>
+              <input type="text" [(ngModel)]="d.DSCV" maxlength="250" />
+            </label>
+            <label class="field">
+              <span class="field__label">Metodo di scavo (DSCM)</span>
+              <select [(ngModel)]="d.DSCM">
+                <option [ngValue]="null">—</option>
+                @for (o of list('DSCM'); track o.key) { <option [ngValue]="o.key">{{ o.label }}</option> }
+              </select>
+            </label>
+            <label class="field">
+              <span class="field__label">Esito (DSCEX)</span>
+              <select [(ngModel)]="d.DSCEX">
+                <option [ngValue]="null">dalle evidenze registrate</option>
+                <option ngValue="1">negativo</option>
+                <option ngValue="2">positivo</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="field__label">Anno dello scavo (DSCY)</span>
+              <input type="number" [(ngModel)]="d.DSCY" min="1900" max="2100" />
+            </label>
+            <label class="field">
+              <span class="field__label">Profondità max relativa, m (MTAR)</span>
+              <input type="text" inputmode="decimal" [(ngModel)]="d.MTAR" placeholder="-1,80" />
+            </label>
+            <label class="field">
+              <span class="field__label">Quota s.l.m. dello zero (MTA0)</span>
+              <input type="text" inputmode="decimal" [(ngModel)]="d.MTA0" placeholder="54,20" />
+            </label>
+            <label class="field">
+              <span class="field__label">Profondità max assoluta, m s.l.m. (MTAM)</span>
+              <input type="text" inputmode="decimal" [(ngModel)]="d.MTAM" />
+            </label>
+            <label class="field">
+              <span class="field__label">Responsabile scientifico (DSCA)</span>
+              <input type="text" [(ngModel)]="d.DSCA" placeholder="Cognome, Nome" />
+            </label>
+            <label class="field span-2">
+              <span class="field__label">Attività e stratigrafia (NSC)</span>
+              <textarea rows="3" [(ngModel)]="d.NSC" maxlength="5000"
+                        placeholder="Se vuoto si usa la metodologia della sorveglianza. Non descrivere qui i reperti."></textarea>
+            </label>
+            <label class="check span-2">
+              <input type="checkbox" [(ngModel)]="d.MATS" />
+              Materiali in giacitura secondaria (MATS)
+            </label>
+          </div>
+          @if (dsc.length > 1) {
+            <button type="button" class="btn btn--quiet btn--sm" (click)="removeDsc(d)">Rimuovi area</button>
+          }
+        </div>
+      }
+      <button type="button" class="btn btn--ghost btn--sm" (click)="addDsc()">Aggiungi area indagata</button>
+    </fieldset>
+
+    <!-- iii. Evidenze (MOSI) --------------------------------------------- -->
+    <fieldset class="form__section">
+      <legend class="form__legend">
+        <span class="form__legend-num">iii.</span>
+        <span class="form__legend-title">Evidenze</span>
+      </legend>
+      @if (findings.length === 0) {
+        <p class="block__empty muted">Nessuna evidenza: la consegna avrà solo progetto e aree indagate con esito negativo.</p>
+      }
+      @for (d of findings; track d.finding.id) {
+        <div class="card">
+          <h3 class="card__title">{{ d.finding.name }}</h3>
+          @if (d.finding.geometry?.type === 'Point') {
+            <p class="field__hint muted">È un punto: per i nuovi scavi GNA chiede il poligono dell'evidenza.</p>
+          }
+          <div class="grid">
+            <label class="field">
+              <span class="field__label">Definizione (OGD)</span>
+              <select [(ngModel)]="d.gna.OGD" (ngModelChange)="onDefinition(d)">
+                <option [ngValue]="null">—</option>
+                @for (o of list('OGD'); track o.key) { <option [ngValue]="o.key">{{ o.label }}</option> }
+              </select>
+            </label>
+            <label class="field">
+              <span class="field__label">Tipologia (OGT)</span>
+              <select multiple [(ngModel)]="d.gna.OGT" [disabled]="!d.gna.OGD" class="multi">
+                @for (o of where('OGT', 'OGD_key', d.gna.OGD); track o.key) {
+                  <option [ngValue]="o.key">{{ o.label }}</option>
+                }
+              </select>
+            </label>
+            <label class="field">
+              <span class="field__label">Situazione attuale (OGB)</span>
+              <select [(ngModel)]="d.gna.OGB">
+                <option [ngValue]="null">—</option>
+                @for (o of list('OGB'); track o.key) { <option [ngValue]="o.key">{{ o.label }}</option> }
+              </select>
+            </label>
+            <label class="field">
+              <span class="field__label">Cronologia generica (DTR)</span>
+              <select [(ngModel)]="d.gna.DTR">
+                <option [ngValue]="null">—</option>
+                @for (o of list('DTR'); track o.key) { <option [ngValue]="o.key">{{ o.label }}</option> }
+              </select>
+            </label>
+            <label class="field">
+              <span class="field__label">Anno iniziale (DTSI)</span>
+              <input type="number" [(ngModel)]="d.gna.DTSI" placeholder="a.C. con il segno meno" />
+              <span class="field__hint muted">{{ dtrRange(d.gna.DTR) }}</span>
+            </label>
+            <label class="field">
+              <span class="field__label">Anno finale (DTSF)</span>
+              <input type="number" [(ngModel)]="d.gna.DTSF" />
+            </label>
+            <label class="field">
+              <span class="field__label">Quota relativa, m (MTAR)</span>
+              <input type="text" inputmode="decimal" [(ngModel)]="d.gna.MTAR" placeholder="-1,20" />
+            </label>
+            <label class="field">
+              <span class="field__label">Quota minima, m s.l.m. (MTAM)</span>
+              <input type="text" inputmode="decimal" [(ngModel)]="d.gna.MTAM" />
+            </label>
+            <label class="field">
+              <span class="field__label">Quota massima, m s.l.m. (MTAX)</span>
+              <input type="text" inputmode="decimal" [(ngModel)]="d.gna.MTAX" />
+            </label>
+            <label class="field">
+              <span class="field__label">Località (PVL)</span>
+              <input type="text" [(ngModel)]="d.gna.PVL" maxlength="250" />
+            </label>
+          </div>
+        </div>
+      }
+    </fieldset>
+
+    <!-- iv. Verifica ------------------------------------------------------ -->
+    <fieldset class="form__section">
+      <legend class="form__legend">
+        <span class="form__legend-num">iv.</span>
+        <span class="form__legend-title">Verifica e consegna</span>
+      </legend>
+      <label class="check">
+        <input type="checkbox" [(ngModel)]="project.presa_visione" />
+        Ho letto le istruzioni GNA sul disegno di geometrie valide, sul download dei dati e sull'invio
+        (<a href="https://gna.cultura.gov.it/wiki/index.php?title=Istruzioni_operative" target="_blank" rel="noopener">istruzioni operative</a>).
+      </label>
+
+      @if (issues(); as list) {
+        @if (list.length === 0) {
+          <p class="ok">Nessun problema: il pacchetto è pronto per QGIS.</p>
+        } @else {
+          <ul class="issues">
+            @for (i of list; track $index) {
+              <li class="issue" [class.issue--warn]="i.level === 'avviso'">
+                <span class="issue__where">{{ i.where }}@if (i.field) { · {{ i.field }} }</span>
+                <span>{{ i.message }}</span>
+              </li>
+            }
+          </ul>
+        }
+      }
+      <p class="field__hint muted">
+        Il pacchetto contiene il Template GNA ufficiale già compilato. Aprilo in QGIS con il plugin GNA,
+        premi «Avvia importazione», controlla le schede e invia. L'invio a GNA non sostituisce la
+        documentazione da consegnare alla Soprintendenza.
+      </p>
+    </fieldset>
+
+    @if (error()) {
+      <p class="form__error">{{ error() }}</p>
+    }
+
+    <div class="page__toolbar">
+      <span class="page__toolbar-meta muted">
+        @if (saved()) { Dati GNA salvati. }
+        @else if (errorCount()) { {{ errorCount() }} {{ errorCount() === 1 ? 'problema bloccante' : 'problemi bloccanti' }} }
+      </span>
+      <div class="page__toolbar-actions">
+        <button type="button" class="btn btn--ghost" [disabled]="busy()" (click)="save()">Salva</button>
+        <button type="button" class="btn btn--ghost" [disabled]="busy()" (click)="check()">Verifica</button>
+        <button type="button" class="btn btn--primary" [disabled]="busy()" (click)="download()">Scarica pacchetto GNA</button>
+      </div>
+    </div>
+  }
+</section>

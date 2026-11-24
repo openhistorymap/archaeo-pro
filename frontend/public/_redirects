@@ -11,6 +11,7 @@
 /wms/*                      https://archaeo-pro.vercel.app/wms/:splat                200!
 /documents/*                https://archaeo-pro.vercel.app/documents/:splat          200!
 /auth/github/*              https://archaeo-pro.vercel.app/auth/github/:splat        200!
+/gna/*                      https://archaeo-pro.vercel.app/gna/:splat                200!
 /health                     https://archaeo-pro.vercel.app/health                    200!
 /health/*                   https://archaeo-pro.vercel.app/health/:splat              200!
 

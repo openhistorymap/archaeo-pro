@@ -37,6 +37,11 @@ export const routes: Routes = [
       import('./features/surveillance-map/surveillance-map').then((m) => m.SurveillanceMap),
   },
   {
+    path: 'surveillances/:id/gna',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/gna-export/gna-export').then((m) => m.GnaExport),
+  },
+  {
     path: 'surveillances/:id/days/:date',
     canActivate: [authGuard],
     loadComponent: () =>

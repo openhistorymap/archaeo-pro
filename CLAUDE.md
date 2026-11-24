@@ -14,6 +14,11 @@ top-level pointers to the rest of the project.
   `core/offline/RepoFs` (Dexie mirror) and `SyncService` (ordered outbox,
   field edit wins, remote copy kept in `conflicts`). New storage code must use
   `RepoFs`, not `GitHubClient`. See "Offline-first" in `docs/architecture.md`.
+- **Template GNA**: `features/gna-export` + backend `routers/gna.py`. The
+  official template is downloaded at runtime, never committed (no stated
+  redistribution licence). Field names are GNA codes; rules follow the
+  template's QGIS constraints. Backend package test needs
+  `GNA_TEMPLATE_ZIP=<path to Template_GNA_1.6.0.zip>`, otherwise skipped.
 - **Deployment**: Frontend on Netlify (`archaeo.pro`, `archeo.pro` 301-fix),
   API on Vercel (`backend/`), Gotenberg PDF service self-hosted from
   `pdf-service/`. Netlify reverse-proxies API paths so the PWA never deals

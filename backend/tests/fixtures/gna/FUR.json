@@ -1,0 +1,34 @@
+{
+ "type": "FeatureCollection",
+ "name": "FUR",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "FUR_key": 9001,
+    "FUR_value": "Rossi, Maria",
+    "cognome": "Rossi",
+    "nome": "Maria",
+    "email": null,
+    "ENTE_key": 20,
+    "attivo": true,
+    "ATT": true
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "FUR_key": 9002,
+    "FUR_value": "Bianchi, Luca",
+    "cognome": "Bianchi",
+    "nome": "Luca",
+    "email": null,
+    "ENTE_key": 21,
+    "attivo": true,
+    "ATT": true
+   }
+  }
+ ]
+}

@@ -129,6 +129,44 @@ What needs a connection: the first login, the first opening of the index and
 of each surveillance on a device, DOCX/PDF rendering, and WMS areas not
 already viewed.
 
+## Template GNA export
+
+Under DG ABAP circulars 9/2024 and 22/2024 the minimum data of every
+investigation authorised by the MiC go to the Geoportale Nazionale per
+l'Archeologia, *assistenza archeologica in corso d'opera* included. For GNA a
+sorveglianza is AMA = 2, and the Template GNA 1.6 needs:
+
+- **MOPR** — the project: the surveillance area, with CPR (which includes the
+  personal code ICA issues on request), Soprintendenza, officers, category and
+  type of works, ISTAT codes, positioning method;
+- **DSC** — every investigated area, positive or negative, with the maximum
+  depth reached (mandatory from 2024);
+- **MOSI** — one record per finding (polygons for new excavation data).
+
+The page `surveillances/:id/gna` collects only what the template needs beyond
+the rest of the surveillance. It is saved with it: `gna` and `gna_dsc` in
+`surveillance.json`, each finding's `gna` block in its GeoJSON properties.
+
+The backend (`app/routers/gna.py`, `app/services/gna_*.py`):
+
+- proxies the GNA vocabularies (`/gna/vocab/{name}`; the Ministry's server
+  sends no CORS headers), cached for a day and by the service worker;
+- checks the data against the template's own constraints (`/gna/check`) and
+  answers in Italian;
+- downloads the official template ZIP once (`GNA_TEMPLATE_URL`), fills its
+  GeoPackage with plain `sqlite3` (geometry encoding and the ST_* functions
+  the R-tree triggers need are in `gna_gpkg.py`, no GDAL) and returns the
+  whole folder (`/gna/package`) with a LEGGIMI.txt.
+
+Delivery stays manual on purpose: data only enter GNA through the QGIS GNA
+plugin, which also requires downloading the existing GNA records first
+(«Avvia importazione»). The archaeologist opens the `.qgz`, checks the
+forms and presses «Invia».
+
+Not covered yet: DSC geometries other than the surveillance area (no drawing
+tool for separate trenches), point and line DSC, images in MOSI, the VPIA
+layers (VRP/VRD, RCG), which a surveillance does not use.
+
 ## OHM export
 
 `exports/ohm.geojson` is a FeatureCollection of the surveillance's findings
